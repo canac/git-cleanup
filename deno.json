@@ -1,0 +1,11 @@
+{
+  "tasks": {
+    "dev": "deno run --allow-env --allow-read --allow-run=git --watch main.ts",
+    "test": "deno test --allow-env --allow-read"
+  },
+  "imports": {
+    "@david/dax": "jsr:@david/dax@^0.42",
+    "@std/expect": "jsr:@std/expect@^1",
+    "@std/testing": "jsr:@std/testing@^1"
+  }
+}
