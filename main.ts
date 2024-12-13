@@ -1,8 +1,10 @@
 import { $ } from "@david/dax";
 import {
+  getBranchWorktrees,
   getDeletableBranches,
   getMergedWorktrees,
   getWorktrees,
+  isNotNull,
 } from "./lib.ts";
 
 // Fetch the latest upstream branches
@@ -49,6 +51,18 @@ const selectedBranches = deletableBranches.length > 0
 const deletingBranches = deletableBranches.filter((_branch, index) =>
   selectedBranches.has(index)
 );
+
+// Detach any worktree using a branch being deleted
+const branchWorktrees = await getBranchWorktrees($);
+const detaching = deletableBranches
+  .map((branch) => branchWorktrees.get(branch) ?? null)
+  .filter(isNotNull);
+await Promise.all(
+  detaching.map((worktree) =>
+    $`git -C ${worktree} switch --detach`.printCommand()
+  ),
+);
+
 if (deletingBranches.length > 0) {
   // Delete all branches at once
   await $`git branch -D ${deletingBranches}`.printCommand();

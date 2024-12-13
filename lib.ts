@@ -1,6 +1,6 @@
 import { $Type } from "@david/dax";
 
-const isNotNull = <T>(item: T | null): item is T => item !== null;
+export const isNotNull = <T>(item: T | null): item is T => item !== null;
 
 /**
  * Return an array of the paths of the current directory's worktrees.
@@ -46,7 +46,7 @@ export const getMergedWorktrees = async (
       deletedPromise,
       ignoredPromise,
     ]);
-    // If the worktree's current branch wasn't deleted upstream, return null so it can be filtered out
+    // If the worktree's current branch wasn't deleted upstream, return null so it will be filtered out
     return deleted ? { path, ignored } : null;
   }));
 
@@ -85,4 +85,29 @@ export const getDeletableBranches = async ($: $Type): Promise<string[]> => {
     const parentBranch = /^(.+)-backup\d*$/.exec(branch)?.[1];
     return parentBranch && !branches.includes(parentBranch);
   });
+};
+
+/**
+ * Return a map of checked out branches and their worktree path.
+ */
+export const getBranchWorktrees = async (
+  $: $Type,
+): Promise<Map<string, string>> => {
+  const sections = (await $`git worktree list --porcelain`.text()).split(
+    "\n\n",
+  );
+
+  return new Map(
+    sections.map((section) => {
+      const lines = section.split("\n");
+      // Find the worktree path
+      const worktree = lines.find((line) => line.startsWith("worktree "))
+        ?.slice(9);
+      // Find the branch name
+      const branch = lines.find((line) => line.startsWith("branch refs/heads/"))
+        ?.slice(18);
+      // If the worktree could not be found, return null so it will be filtered out
+      return worktree && branch ? [branch, worktree] as const : null;
+    }).filter(isNotNull),
+  );
 };

@@ -2,6 +2,7 @@ import { build$, CommandBuilder } from "@david/dax";
 import { describe, it } from "jsr:@std/testing/bdd";
 import { expect } from "@std/expect";
 import {
+  getBranchWorktrees,
   getDeletableBranches,
   getMergedWorktrees,
   getWorktrees,
@@ -208,5 +209,57 @@ orphaned-backup2
       "orphaned-backup",
       "orphaned-backup2",
     ]);
+  });
+});
+
+describe("getBranchWorktrees", () => {
+  it("returns a map of worktree paths and their branches, filtering out detached worktrees", async () => {
+    const commandBuilder = new CommandBuilder()
+      .clearEnv()
+      .registerCommand(
+        "git",
+        ({ args, stdout }) => {
+          if (
+            !arrayCompare(args, [
+              "worktree",
+              "list",
+              "--porcelain",
+            ])
+          ) {
+            throw new Error(
+              `git called with unexpected arguments: ${args.join(" ")}`,
+            );
+          }
+
+          stdout.writeText(`worktree /dev/project
+HEAD 0000000000000000000000000000000000000000
+branch refs/heads/main
+
+worktree /dev/worktree-1
+HEAD 1111111111111111111111111111111111111111
+branch refs/heads/worktree-1
+
+worktree /dev/worktree-2
+HEAD 2222222222222222222222222222222222222222
+branch refs/heads/worktree-2
+
+worktree /dev/worktree-3
+HEAD 3333333333333333333333333333333333333333
+detached
+`);
+          return { code: 0 };
+        },
+      );
+
+    const $ = build$({ commandBuilder });
+    expect(
+      await getBranchWorktrees($),
+    ).toEqual(
+      new Map([
+        ["main", "/dev/project"],
+        ["worktree-1", "/dev/worktree-1"],
+        ["worktree-2", "/dev/worktree-2"],
+      ]),
+    );
   });
 });
