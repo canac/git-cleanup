@@ -48,9 +48,7 @@ const selectedBranches = deletableBranches.length > 0
     }),
   )
   : new Set();
-const deletingBranches = deletableBranches.filter((_branch, index) =>
-  selectedBranches.has(index)
-);
+const deletingBranches = deletableBranches.filter((_branch, index) => selectedBranches.has(index));
 
 // Detach any worktree using a branch being deleted
 const branchWorktrees = await getBranchWorktrees($);
@@ -58,9 +56,7 @@ const detaching = deletableBranches
   .map((branch) => branchWorktrees.get(branch) ?? null)
   .filter(isNotNull);
 await Promise.all(
-  detaching.map((worktree) =>
-    $`git -C ${worktree} switch --detach`.printCommand()
-  ),
+  detaching.map((worktree) => $`git -C ${worktree} switch --detach`.printCommand()),
 );
 
 if (deletingBranches.length > 0) {

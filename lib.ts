@@ -34,18 +34,13 @@ export const getMergedWorktrees = async (
 
   const mergedWorktrees = await Promise.all(worktrees.map(async (path) => {
     // If the worktree's current branch is deleted upstream, its entry will be [gone] *
-    const deletedPromise =
-      $`git -C ${path} branch --format '%(upstream:track) %(HEAD)'`.lines()
-        .then((lines) => lines.some((line) => line === "[gone] *"));
-    const ignoredPromise =
-      $`git -C ${path} config get --worktree cleanup.ignore`
-        .noThrow()
-        .text().then((ignore) => ignore === "true");
+    const deletedPromise = $`git -C ${path} branch --format '%(upstream:track) %(HEAD)'`.lines()
+      .then((lines) => lines.some((line) => line === "[gone] *"));
+    const ignoredPromise = $`git -C ${path} config get --worktree cleanup.ignore`
+      .noThrow()
+      .text().then((ignore) => ignore === "true");
 
-    const [deleted, ignored] = await Promise.all([
-      deletedPromise,
-      ignoredPromise,
-    ]);
+    const [deleted, ignored] = await Promise.all([deletedPromise, ignoredPromise]);
     // If the worktree's current branch wasn't deleted upstream, return null so it will be filtered out
     return deleted ? { path, ignored } : null;
   }));
@@ -59,8 +54,7 @@ export const getMergedWorktrees = async (
  * are orphaned backup branches.
  */
 export const getDeletableBranches = async ($: $Type): Promise<string[]> => {
-  const branchLines =
-    await $`git branch --format '%(refname:short)%(upstream:track)'`.lines();
+  const branchLines = await $`git branch --format '%(refname:short)%(upstream:track)'`.lines();
 
   const branches = branchLines
     // Strip [gone] from the end of branch names
@@ -74,8 +68,7 @@ export const getDeletableBranches = async ($: $Type): Promise<string[]> => {
     // A branch can be deleted if it was deleted upstream or if it is a backup branch of a branch
     // deleted upstream
     const merged = mergedBranches.some((mergedBranch) =>
-      branch === mergedBranch ||
-      /^(.+)-backup\d*$/.exec(branch)?.[1] === mergedBranch
+      branch === mergedBranch || /^(.+)-backup\d*$/.exec(branch)?.[1] === mergedBranch
     );
     if (merged) {
       return true;
@@ -93,19 +86,15 @@ export const getDeletableBranches = async ($: $Type): Promise<string[]> => {
 export const getBranchWorktrees = async (
   $: $Type,
 ): Promise<Map<string, string>> => {
-  const sections = (await $`git worktree list --porcelain`.text()).split(
-    "\n\n",
-  );
+  const sections = (await $`git worktree list --porcelain`.text()).split("\n\n");
 
   return new Map(
     sections.map((section) => {
       const lines = section.split("\n");
       // Find the worktree path
-      const worktree = lines.find((line) => line.startsWith("worktree "))
-        ?.slice(9);
+      const worktree = lines.find((line) => line.startsWith("worktree "))?.slice(9);
       // Find the branch name
-      const branch = lines.find((line) => line.startsWith("branch refs/heads/"))
-        ?.slice(18);
+      const branch = lines.find((line) => line.startsWith("branch refs/heads/"))?.slice(18);
       // If the worktree could not be found, return null so it will be filtered out
       return worktree && branch ? [branch, worktree] as const : null;
     }).filter(isNotNull),

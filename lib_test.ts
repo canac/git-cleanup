@@ -19,9 +19,7 @@ const arrayCompare = (
   arr2: (string | symbol)[],
 ): boolean => {
   return arr1.length === arr2.length &&
-    arr1.every((item1, index) =>
-      item1 === arr2[index] || arr2[index] === wildcard
-    );
+    arr1.every((item1, index) => item1 === arr2[index] || arr2[index] === wildcard);
 };
 
 describe("arrayCompare", () => {
@@ -53,9 +51,7 @@ describe("getWorktrees", () => {
         "git",
         ({ args, stdout }) => {
           if (!arrayCompare(args, ["worktree", "list", "--porcelain"])) {
-            throw new Error(
-              `git called with unexpected arguments: ${args.join(" ")}`,
-            );
+            throw new Error(`git called with unexpected arguments: ${args.join(" ")}`);
           }
 
           stdout.writeText(`worktree /dev/project
@@ -94,27 +90,12 @@ describe("getMergedWorktrees", () => {
       .registerCommand(
         "git",
         ({ args, stdout }) => {
-          if (
-            arrayCompare(args, [
-              "config",
-              "set",
-              "extensions.worktreeconfig",
-              "true",
-            ])
-          ) {
+          if (arrayCompare(args, ["config", "set", "extensions.worktreeconfig", "true"])) {
             return { code: 0 };
           } else if (
-            arrayCompare(args, [
-              "-C",
-              wildcard,
-              "branch",
-              "--format",
-              "%(upstream:track) %(HEAD)",
-            ])
+            arrayCompare(args, ["-C", wildcard, "branch", "--format", "%(upstream:track) %(HEAD)"])
           ) {
-            if (
-              args[1] === "/dev/worktree-1" || args[1] === "/dev/worktree-2"
-            ) {
+            if (args[1] === "/dev/worktree-1" || args[1] === "/dev/worktree-2") {
               // Current branch is deleted upstream
               stdout.writeText("[gone] *");
             } else {
@@ -123,14 +104,7 @@ describe("getMergedWorktrees", () => {
             }
             return { code: 0 };
           } else if (
-            arrayCompare(args, [
-              "-C",
-              wildcard,
-              "config",
-              "get",
-              "--worktree",
-              "cleanup.ignore",
-            ])
+            arrayCompare(args, ["-C", wildcard, "config", "get", "--worktree", "cleanup.ignore"])
           ) {
             if (args[1] === "/dev/worktree-1") {
               stdout.writeText("true");
@@ -143,23 +117,16 @@ describe("getMergedWorktrees", () => {
             return { code: 0 };
           }
 
-          throw new Error(
-            `git called with unexpected arguments: ${args.join(" ")}`,
-          );
+          throw new Error(`git called with unexpected arguments: ${args.join(" ")}`);
         },
       );
 
     const $ = build$({ commandBuilder });
-    expect(
-      await getMergedWorktrees($, [
-        "/dev/worktree-1",
-        "/dev/worktree-2",
-        "/dev/worktree-3",
-      ]),
-    ).toEqual([
-      { ignored: true, path: "/dev/worktree-1" },
-      { ignored: false, path: "/dev/worktree-2" },
-    ]);
+    expect(await getMergedWorktrees($, ["/dev/worktree-1", "/dev/worktree-2", "/dev/worktree-3"]))
+      .toEqual([
+        { ignored: true, path: "/dev/worktree-1" },
+        { ignored: false, path: "/dev/worktree-2" },
+      ]);
   });
 });
 
@@ -171,15 +138,9 @@ describe("getDeletableBranches", () => {
         "git",
         ({ args, stdout }) => {
           if (
-            !arrayCompare(args, [
-              "branch",
-              "--format",
-              "%(refname:short)%(upstream:track)",
-            ])
+            !arrayCompare(args, ["branch", "--format", "%(refname:short)%(upstream:track)"])
           ) {
-            throw new Error(
-              `git called with unexpected arguments: ${args.join(" ")}`,
-            );
+            throw new Error(`git called with unexpected arguments: ${args.join(" ")}`);
           }
 
           stdout.writeText(`main
@@ -199,9 +160,7 @@ orphaned-backup2
       );
 
     const $ = build$({ commandBuilder });
-    expect(
-      await getDeletableBranches($),
-    ).toEqual([
+    expect(await getDeletableBranches($)).toEqual([
       "deleted-upstream",
       "deleted-upstream-backup",
       "deleted-upstream-backup2",
@@ -219,16 +178,8 @@ describe("getBranchWorktrees", () => {
       .registerCommand(
         "git",
         ({ args, stdout }) => {
-          if (
-            !arrayCompare(args, [
-              "worktree",
-              "list",
-              "--porcelain",
-            ])
-          ) {
-            throw new Error(
-              `git called with unexpected arguments: ${args.join(" ")}`,
-            );
+          if (!arrayCompare(args, ["worktree", "list", "--porcelain"])) {
+            throw new Error(`git called with unexpected arguments: ${args.join(" ")}`);
           }
 
           stdout.writeText(`worktree /dev/project
@@ -252,9 +203,7 @@ detached
       );
 
     const $ = build$({ commandBuilder });
-    expect(
-      await getBranchWorktrees($),
-    ).toEqual(
+    expect(await getBranchWorktrees($)).toEqual(
       new Map([
         ["main", "/dev/project"],
         ["worktree-1", "/dev/worktree-1"],
