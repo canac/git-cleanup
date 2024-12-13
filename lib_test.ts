@@ -86,7 +86,6 @@ detached
 describe("getMergedWorktrees", () => {
   it("returns an array of merged worktrees with their ignored state", async () => {
     const commandBuilder = new CommandBuilder()
-      .clearEnv()
       .registerCommand(
         "git",
         ({ args, stdout }) => {
@@ -133,7 +132,6 @@ describe("getMergedWorktrees", () => {
 describe("getDeletableBranches", () => {
   it("returns an array of merged branches, backup branches of merged branches, and orphaned backup branches", async () => {
     const commandBuilder = new CommandBuilder()
-      .clearEnv()
       .registerCommand(
         "git",
         ({ args, stdout }) => {
@@ -174,7 +172,6 @@ orphaned-backup2
 describe("getBranchWorktrees", () => {
   it("returns a map of worktree paths and their branches, filtering out detached worktrees", async () => {
     const commandBuilder = new CommandBuilder()
-      .clearEnv()
       .registerCommand(
         "git",
         ({ args, stdout }) => {
