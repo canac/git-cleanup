@@ -3,8 +3,8 @@ import { describe, it } from "jsr:@std/testing/bdd";
 import { expect } from "@std/expect";
 import {
   getBranchWorktrees,
-  getDeletableBranches,
-  getMergedWorktrees,
+  getRemovableBranches,
+  getRemovableWorktrees,
   getWorktrees,
 } from "./lib.ts";
 
@@ -83,7 +83,7 @@ detached
   });
 });
 
-describe("getMergedWorktrees", () => {
+describe("getRemovableWorktrees", () => {
   it("returns an array of merged worktrees with their ignored state", async () => {
     const commandBuilder = new CommandBuilder()
       .registerCommand(
@@ -121,7 +121,9 @@ describe("getMergedWorktrees", () => {
       );
 
     const $ = build$({ commandBuilder });
-    expect(await getMergedWorktrees($, ["/dev/worktree-1", "/dev/worktree-2", "/dev/worktree-3"]))
+    expect(
+      await getRemovableWorktrees($, ["/dev/worktree-1", "/dev/worktree-2", "/dev/worktree-3"]),
+    )
       .toEqual([
         { ignored: true, path: "/dev/worktree-1" },
         { ignored: false, path: "/dev/worktree-2" },
@@ -129,7 +131,7 @@ describe("getMergedWorktrees", () => {
   });
 });
 
-describe("getDeletableBranches", () => {
+describe("getRemovableBranches", () => {
   it("returns an array of merged branches, backup branches of merged branches, and orphaned backup branches", async () => {
     const commandBuilder = new CommandBuilder()
       .registerCommand(
@@ -158,7 +160,7 @@ orphaned-backup2
       );
 
     const $ = build$({ commandBuilder });
-    expect(await getDeletableBranches($)).toEqual([
+    expect(await getRemovableBranches($)).toEqual([
       "deleted-upstream",
       "deleted-upstream-backup",
       "deleted-upstream-backup2",

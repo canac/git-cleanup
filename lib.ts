@@ -15,7 +15,7 @@ export const getWorktrees = async ($: $Type): Promise<string[]> => {
     .slice(1);
 };
 
-interface MergedWorktree {
+interface RemovableWorktree {
   path: string;
   ignored: boolean;
 }
@@ -25,14 +25,14 @@ interface MergedWorktree {
  * has been deleted upstream and indicate whether the worktree was manually ignored from cleanup
  * during a past run.
  */
-export const getMergedWorktrees = async (
+export const getRemovableWorktrees = async (
   $: $Type,
   worktrees: string[],
-): Promise<MergedWorktree[]> => {
+): Promise<RemovableWorktree[]> => {
   // Enable storing cleanup.ignore worktree-specific config
   await $`git config set extensions.worktreeconfig true`;
 
-  const mergedWorktrees = await Promise.all(worktrees.map(async (path) => {
+  const removableWorktrees = await Promise.all(worktrees.map(async (path) => {
     // If the worktree's current branch is deleted upstream, its entry will be [gone] *
     const deletedPromise = $`git -C ${path} branch --format '%(upstream:track) %(HEAD)'`.lines()
       .then((lines) => lines.some((line) => line === "[gone] *"));
@@ -45,15 +45,15 @@ export const getMergedWorktrees = async (
     return deleted ? { path, ignored } : null;
   }));
 
-  return mergedWorktrees.filter(isNotNull);
+  return removableWorktrees.filter(isNotNull);
 };
 
 /**
- * Return an array of the current directory's branches that can be cleaned up. Deletable branches
+ * Return an array of the current directory's branches that can be cleaned up. Removable branches
  * are ones that are merged upstream, are backup branches of branches that are merged upstream, or
  * are orphaned backup branches.
  */
-export const getDeletableBranches = async ($: $Type): Promise<string[]> => {
+export const getRemovableBranches = async ($: $Type): Promise<string[]> => {
   const branchLines = await $`git branch --format '%(refname:short)%(upstream:track)'`.lines();
 
   const branches = branchLines

@@ -1,8 +1,8 @@
 import { $ } from "@david/dax";
 import {
   getBranchWorktrees,
-  getDeletableBranches,
-  getMergedWorktrees,
+  getRemovableBranches,
+  getRemovableWorktrees,
   getWorktrees,
   isNotNull,
 } from "./lib.ts";
@@ -10,12 +10,12 @@ import {
 // Fetch the latest upstream branches
 await $`git fetch --prune`;
 
-const mergedWorktrees = await getMergedWorktrees($, await getWorktrees($));
-const selectedWorktrees = mergedWorktrees.length > 0
+const removableWorktrees = await getRemovableWorktrees($, await getWorktrees($));
+const selectedWorktrees = removableWorktrees.length > 0
   ? new Set(
     await $.multiSelect({
       message: "Which worktrees do you want to clean up?",
-      options: mergedWorktrees.map(({ path, ignored }) => ({
+      options: removableWorktrees.map(({ path, ignored }) => ({
         text: path,
         selected: !ignored,
       })),
@@ -23,7 +23,7 @@ const selectedWorktrees = mergedWorktrees.length > 0
   )
   : new Set();
 
-await Promise.all(mergedWorktrees.map((worktree, index) => {
+await Promise.all(removableWorktrees.map((worktree, index) => {
   if (selectedWorktrees.has(index)) {
     // Remove the worktree
     return $`git worktree remove ${worktree.path} --force`.printCommand();
@@ -36,23 +36,23 @@ await Promise.all(mergedWorktrees.map((worktree, index) => {
   return Promise.resolve(null);
 }));
 
-const deletableBranches = await getDeletableBranches($);
-const selectedBranches = deletableBranches.length > 0
+const removableBranches = await getRemovableBranches($);
+const selectedBranches = removableBranches.length > 0
   ? new Set(
     await $.multiSelect({
       message: "Which branches do you want to clean up?",
-      options: deletableBranches.map((branch) => ({
+      options: removableBranches.map((branch) => ({
         text: branch,
         selected: true,
       })),
     }),
   )
   : new Set();
-const deletingBranches = deletableBranches.filter((_branch, index) => selectedBranches.has(index));
+const deletingBranches = removableBranches.filter((_branch, index) => selectedBranches.has(index));
 
 // Detach any worktree using a branch being deleted
 const branchWorktrees = await getBranchWorktrees($);
-const detaching = deletableBranches
+const detaching = removableBranches
   .map((branch) => branchWorktrees.get(branch) ?? null)
   .filter(isNotNull);
 await Promise.all(
