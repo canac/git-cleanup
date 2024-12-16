@@ -3,6 +3,7 @@ import { describe, it } from "jsr:@std/testing/bdd";
 import { expect } from "@std/expect";
 import {
   getBranchWorktrees,
+  getIgnoredBranches,
   getRemovableBranches,
   getRemovableWorktrees,
   getWorktrees,
@@ -171,6 +172,60 @@ orphaned-backup2
       { name: "orphaned-backup", ignored: false },
       { name: "orphaned-backup2", ignored: true },
     ]);
+  });
+});
+
+describe("getIgnoredBranches", () => {
+  it("parses the git config", async () => {
+    const commandBuilder = new CommandBuilder()
+      .registerCommand(
+        "git",
+        ({ args, stdout }) => {
+          if (!arrayCompare(args, ["config", "get", "cleanup.ignoredBranches"])) {
+            throw new Error(`git called with unexpected arguments: ${args.join(" ")}`);
+          }
+
+          stdout.writeText("branch-1 branch-3");
+          return { code: 0 };
+        },
+      );
+
+    const $ = build$({ commandBuilder });
+    expect(await getIgnoredBranches($)).toEqual(["branch-1", "branch-3"]);
+  });
+
+  it("handles missing config", async () => {
+    const commandBuilder = new CommandBuilder()
+      .registerCommand(
+        "git",
+        ({ args }) => {
+          if (!arrayCompare(args, ["config", "get", "cleanup.ignoredBranches"])) {
+            throw new Error(`git called with unexpected arguments: ${args.join(" ")}`);
+          }
+
+          return { code: 1 };
+        },
+      );
+
+    const $ = build$({ commandBuilder });
+    expect(await getIgnoredBranches($)).toEqual([]);
+  });
+
+  it("handles blank", async () => {
+    const commandBuilder = new CommandBuilder()
+      .registerCommand(
+        "git",
+        ({ args }) => {
+          if (!arrayCompare(args, ["config", "get", "cleanup.ignoredBranches"])) {
+            throw new Error(`git called with unexpected arguments: ${args.join(" ")}`);
+          }
+
+          return { code: 0 };
+        },
+      );
+
+    const $ = build$({ commandBuilder });
+    expect(await getIgnoredBranches($)).toEqual([]);
   });
 });
 

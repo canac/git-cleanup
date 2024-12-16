@@ -61,9 +61,7 @@ interface RemovableBranch {
 export const getRemovableBranches = async ($: $Type): Promise<RemovableBranch[]> => {
   const [branchLines, ignoredBranches] = await Promise.all([
     $`git branch --format '%(refname:short)%(upstream:track)'`.lines(),
-    $`git config get cleanup.ignoredBranches`.noThrow().text().then((branches) =>
-      new Set(branches.length > 0 ? branches.split(" ") : [])
-    ),
+    getIgnoredBranches($).then((branches) => new Set(branches)),
   ]);
 
   const branches = branchLines
@@ -88,6 +86,14 @@ export const getRemovableBranches = async ($: $Type): Promise<RemovableBranch[]>
     const parentBranch = /^(.+)-backup\d*$/.exec(branch)?.[1];
     return parentBranch && !branches.includes(parentBranch);
   }).map((branch) => ({ name: branch, ignored: ignoredBranches.has(branch) }));
+};
+
+/**
+ * Return an array of the branches that were ignored in a previous run.
+ */
+export const getIgnoredBranches = async ($: $Type): Promise<string[]> => {
+  const branches = await $`git config get cleanup.ignoredBranches`.noThrow().text();
+  return branches.length > 0 ? branches.split(" ") : [];
 };
 
 /**
