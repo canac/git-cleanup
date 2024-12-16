@@ -41,9 +41,9 @@ const selectedBranches = removableBranches.length > 0
   ? new Set(
     await $.multiSelect({
       message: "Which branches do you want to clean up?",
-      options: removableBranches.map((branch) => ({
-        text: branch,
-        selected: true,
+      options: removableBranches.map(({ name, ignored }) => ({
+        text: name,
+        selected: !ignored,
       })),
     }),
   )
@@ -53,7 +53,7 @@ const deletingBranches = removableBranches.filter((_branch, index) => selectedBr
 // Detach any worktree using a branch being deleted
 const branchWorktrees = await getBranchWorktrees($);
 const detaching = removableBranches
-  .map((branch) => branchWorktrees.get(branch) ?? null)
+  .map((branch) => branchWorktrees.get(branch.name) ?? null)
   .filter(isNotNull);
 await Promise.all(
   detaching.map((worktree) => $`git -C ${worktree} switch --detach`.printCommand()),
@@ -63,3 +63,10 @@ if (deletingBranches.length > 0) {
   // Delete all branches at once
   await $`git branch -D ${deletingBranches}`.printCommand();
 }
+
+// Remember branches that were deselected so that they start out deselected next time
+const ignoredBranches = removableBranches
+  .filter((_branch, index) => !selectedBranches.has(index))
+  .map(({ name }) => name)
+  .join(" ");
+await $`git config set cleanup.ignoredBranches ${ignoredBranches}`;

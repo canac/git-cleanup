@@ -48,13 +48,23 @@ export const getRemovableWorktrees = async (
   return removableWorktrees.filter(isNotNull);
 };
 
+interface RemovableBranch {
+  name: string;
+  ignored: boolean;
+}
+
 /**
  * Return an array of the current directory's branches that can be cleaned up. Removable branches
  * are ones that are merged upstream, are backup branches of branches that are merged upstream, or
  * are orphaned backup branches.
  */
-export const getRemovableBranches = async ($: $Type): Promise<string[]> => {
-  const branchLines = await $`git branch --format '%(refname:short)%(upstream:track)'`.lines();
+export const getRemovableBranches = async ($: $Type): Promise<RemovableBranch[]> => {
+  const [branchLines, ignoredBranches] = await Promise.all([
+    $`git branch --format '%(refname:short)%(upstream:track)'`.lines(),
+    $`git config get cleanup.ignoredBranches`.noThrow().text().then((branches) =>
+      new Set(branches.length > 0 ? branches.split(" ") : [])
+    ),
+  ]);
 
   const branches = branchLines
     // Strip [gone] from the end of branch names
@@ -77,7 +87,7 @@ export const getRemovableBranches = async ($: $Type): Promise<string[]> => {
     // A branch can be deleted if it is an orphaned backup branch
     const parentBranch = /^(.+)-backup\d*$/.exec(branch)?.[1];
     return parentBranch && !branches.includes(parentBranch);
-  });
+  }).map((branch) => ({ name: branch, ignored: ignoredBranches.has(branch) }));
 };
 
 /**

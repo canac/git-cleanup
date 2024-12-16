@@ -132,18 +132,15 @@ describe("getRemovableWorktrees", () => {
 });
 
 describe("getRemovableBranches", () => {
-  it("returns an array of merged branches, backup branches of merged branches, and orphaned backup branches", async () => {
+  it("returns an array of merged branches, backup branches of merged branches, and orphaned backup branches with their ignored state", async () => {
     const commandBuilder = new CommandBuilder()
       .registerCommand(
         "git",
         ({ args, stdout }) => {
           if (
-            !arrayCompare(args, ["branch", "--format", "%(refname:short)%(upstream:track)"])
+            arrayCompare(args, ["branch", "--format", "%(refname:short)%(upstream:track)"])
           ) {
-            throw new Error(`git called with unexpected arguments: ${args.join(" ")}`);
-          }
-
-          stdout.writeText(`main
+            stdout.writeText(`main
 deleted-upstream[gone]
 deleted-upstream-backup
 deleted-upstream-backup-branch
@@ -155,18 +152,24 @@ orphaned-backup
 orphaned-backup-branch
 orphaned-backup2
 `);
+          } else if (arrayCompare(args, ["config", "get", "cleanup.ignoredBranches"])) {
+            stdout.writeText("deleted-upstream-backup orphaned-backup2");
+          } else {
+            throw new Error(`git called with unexpected arguments: ${args.join(" ")}`);
+          }
+
           return { code: 0 };
         },
       );
 
     const $ = build$({ commandBuilder });
     expect(await getRemovableBranches($)).toEqual([
-      "deleted-upstream",
-      "deleted-upstream-backup",
-      "deleted-upstream-backup2",
-      "deleted-upstream-2",
-      "orphaned-backup",
-      "orphaned-backup2",
+      { name: "deleted-upstream", ignored: false },
+      { name: "deleted-upstream-backup", ignored: true },
+      { name: "deleted-upstream-backup2", ignored: false },
+      { name: "deleted-upstream-2", ignored: false },
+      { name: "orphaned-backup", ignored: false },
+      { name: "orphaned-backup2", ignored: true },
     ]);
   });
 });
