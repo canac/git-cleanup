@@ -3,14 +3,13 @@ import {
   getBranchWorktrees,
   getRemovableBranches,
   getRemovableWorktrees,
-  getWorktrees,
   isNotNull,
 } from "./lib.ts";
 
 // Fetch the latest upstream branches
 await $`git fetch --prune`;
 
-const removableWorktrees = await getRemovableWorktrees($, await getWorktrees($));
+const removableWorktrees = await getRemovableWorktrees($);
 const selectedWorktrees = removableWorktrees.length > 0
   ? new Set(
     await $.multiSelect({

@@ -2,19 +2,6 @@ import { $Type } from "@david/dax";
 
 export const isNotNull = <T>(item: T | null): item is T => item !== null;
 
-/**
- * Return an array of the paths of the current directory's worktrees.
- */
-export const getWorktrees = async ($: $Type): Promise<string[]> => {
-  // List the worktrees in the current directory
-  return (await $`git worktree list --porcelain`
-    .lines()).filter((line) => line.startsWith("worktree"))
-    // Strip out the "worktree " part of the line
-    .map((line) => line.slice(9))
-    // Ignore the primary worktree
-    .slice(1);
-};
-
 interface RemovableWorktree {
   path: string;
   ignored: boolean;
@@ -27,10 +14,12 @@ interface RemovableWorktree {
  */
 export const getRemovableWorktrees = async (
   $: $Type,
-  worktrees: string[],
 ): Promise<RemovableWorktree[]> => {
-  // Enable storing cleanup.ignore worktree-specific config
-  await $`git config set extensions.worktreeconfig true`;
+  const [worktrees] = await Promise.all([
+    getWorktrees($),
+    // Enable storing cleanup.ignore worktree-specific config
+    $`git config set extensions.worktreeconfig true`,
+  ]);
 
   const removableWorktrees = await Promise.all(worktrees.map(async (path) => {
     // If the worktree's current branch is deleted upstream, its entry will be [gone] *
@@ -46,6 +35,19 @@ export const getRemovableWorktrees = async (
   }));
 
   return removableWorktrees.filter(isNotNull);
+};
+
+/**
+ * Return an array of the paths of the current directory's worktrees.
+ */
+export const getWorktrees = async ($: $Type): Promise<string[]> => {
+  // List the worktrees in the current directory
+  const lines = await $`git worktree list --porcelain`.lines();
+  return lines.filter((line) => line.startsWith("worktree"))
+    // Strip out the "worktree " part of the line
+    .map((line) => line.slice(9))
+    // Ignore the primary worktree
+    .slice(1);
 };
 
 interface RemovableBranch {

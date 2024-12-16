@@ -50,27 +50,12 @@ describe("getWorktrees", () => {
     const commandBuilder = new CommandBuilder()
       .registerCommand(
         "git",
-        ({ args, stdout }) => {
+        async ({ args, stdout }) => {
           if (!arrayCompare(args, ["worktree", "list", "--porcelain"])) {
             throw new Error(`git called with unexpected arguments: ${args.join(" ")}`);
           }
 
-          stdout.writeText(`worktree /dev/project
-HEAD 0000000000000000000000000000000000000000
-branch refs/heads/main
-
-worktree /dev/worktree-1
-HEAD 1111111111111111111111111111111111111111
-branch refs/heads/worktree-1
-
-worktree /dev/worktree-2
-HEAD 2222222222222222222222222222222222222222
-branch refs/heads/worktree-2
-
-worktree /dev/worktree-3
-HEAD 3333333333333333333333333333333333333333
-detached
-`);
+          stdout.writeText(await Deno.readTextFile("./fixtures/worktree-list.output"));
           return { code: 0 };
         },
       );
@@ -89,8 +74,11 @@ describe("getRemovableWorktrees", () => {
     const commandBuilder = new CommandBuilder()
       .registerCommand(
         "git",
-        ({ args, stdout }) => {
-          if (arrayCompare(args, ["config", "set", "extensions.worktreeconfig", "true"])) {
+        async ({ args, stdout }) => {
+          if (arrayCompare(args, ["worktree", "list", "--porcelain"])) {
+            stdout.writeText(await Deno.readTextFile("./fixtures/worktree-list.output"));
+            return { code: 0 };
+          } else if (arrayCompare(args, ["config", "set", "extensions.worktreeconfig", "true"])) {
             return { code: 0 };
           } else if (
             arrayCompare(args, ["-C", wildcard, "branch", "--format", "%(upstream:track) %(HEAD)"])
@@ -122,9 +110,7 @@ describe("getRemovableWorktrees", () => {
       );
 
     const $ = build$({ commandBuilder });
-    expect(
-      await getRemovableWorktrees($, ["/dev/worktree-1", "/dev/worktree-2", "/dev/worktree-3"]),
-    )
+    expect(await getRemovableWorktrees($))
       .toEqual([
         { ignored: true, path: "/dev/worktree-1" },
         { ignored: false, path: "/dev/worktree-2" },
