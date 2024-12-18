@@ -47,7 +47,9 @@ const selectedBranches = removableBranches.length > 0
     }),
   )
   : new Set();
-const deletingBranches = removableBranches.filter((_branch, index) => selectedBranches.has(index));
+const deletingBranches = removableBranches
+  .filter((_branch, index) => selectedBranches.has(index))
+  .map(({ name }) => name);
 
 // Detach any worktree using a branch being deleted
 const branchWorktrees = await getBranchWorktrees($);
