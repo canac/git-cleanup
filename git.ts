@@ -1,6 +1,6 @@
 import type { $Type, MultiSelectOption } from "@david/dax";
-import { mapNotNullish } from "@std/collections";
-import { isNotNull } from "./lib.ts";
+import { firstNotNullishOf, mapNotNullish } from "@std/collections";
+import { isNotNull, stripPrefix } from "./lib.ts";
 
 /**
  * Prompt the user to select some options. Return a tuple of the selected options and the unselected
@@ -62,9 +62,7 @@ export const getRemovableWorktrees = async (
 export const getWorktrees = async ($: $Type): Promise<string[]> => {
   // List the worktrees in the current directory
   const lines = await $`git worktree list --porcelain`.lines();
-  return lines.filter((line) => line.startsWith("worktree"))
-    // Strip out the "worktree " part of the line
-    .map((line) => line.slice(9))
+  return mapNotNullish(lines, (line) => stripPrefix(line, "worktree "))
     // Ignore the primary worktree
     .slice(1);
 };
@@ -129,9 +127,9 @@ export const getBranchWorktrees = async (
     mapNotNullish(sections, (section) => {
       const lines = section.split("\n");
       // Find the worktree path
-      const worktree = lines.find((line) => line.startsWith("worktree "))?.slice(9);
+      const worktree = firstNotNullishOf(lines, (line) => stripPrefix(line, "worktree "));
       // Find the branch name
-      const branch = lines.find((line) => line.startsWith("branch refs/heads/"))?.slice(18);
+      const branch = firstNotNullishOf(lines, (line) => stripPrefix(line, "branch refs/heads/"));
       // If the worktree could not be found, return null so it will be filtered out
       return worktree && branch ? [branch, worktree] as const : null;
     }),
