@@ -1,4 +1,5 @@
 import type { $Type, MultiSelectOption } from "@david/dax";
+import { mapNotNullish } from "@std/collections";
 import { isNotNull } from "./lib.ts";
 
 /**
@@ -125,7 +126,7 @@ export const getBranchWorktrees = async (
   const sections = (await $`git worktree list --porcelain`.text()).split("\n\n");
 
   return new Map(
-    sections.map((section) => {
+    mapNotNullish(sections, (section) => {
       const lines = section.split("\n");
       // Find the worktree path
       const worktree = lines.find((line) => line.startsWith("worktree "))?.slice(9);
@@ -133,6 +134,6 @@ export const getBranchWorktrees = async (
       const branch = lines.find((line) => line.startsWith("branch refs/heads/"))?.slice(18);
       // If the worktree could not be found, return null so it will be filtered out
       return worktree && branch ? [branch, worktree] as const : null;
-    }).filter(isNotNull),
+    }),
   );
 };

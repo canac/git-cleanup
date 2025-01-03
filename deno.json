@@ -5,6 +5,7 @@
   },
   "imports": {
     "@david/dax": "jsr:@david/dax@^0.42",
+    "@std/collections": "jsr:@std/collections@^1",
     "@std/expect": "jsr:@std/expect@^1",
     "@std/testing": "jsr:@std/testing@^1"
   },

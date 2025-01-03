@@ -1,6 +1,6 @@
 import { $ } from "@david/dax";
+import { mapNotNullish } from "@std/collections";
 import { getBranchWorktrees, getRemovableBranches, getRemovableWorktrees, prompt } from "./git.ts";
-import { isNotNull } from "./lib.ts";
 
 // Fetch the latest upstream branches
 await $`git fetch --prune`;
@@ -37,9 +37,10 @@ const [selectedBranches, unselectedBranches] = await prompt(
 
 // Detach any worktree using a branch being deleted
 const branchWorktrees = await getBranchWorktrees($);
-const detaching = selectedBranches
-  .map(({ text: branch }) => branchWorktrees.get(branch) ?? null)
-  .filter(isNotNull);
+const detaching = mapNotNullish(
+  selectedBranches,
+  ({ text: branch }) => branchWorktrees.get(branch) ?? null,
+);
 await Promise.all(
   detaching.map((worktree) => $`git -C ${worktree} switch --detach`.printCommand()),
 );
