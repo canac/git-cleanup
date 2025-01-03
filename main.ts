@@ -1,11 +1,6 @@
 import { $ } from "@david/dax";
-import {
-  getBranchWorktrees,
-  getRemovableBranches,
-  getRemovableWorktrees,
-  isNotNull,
-  prompt,
-} from "./lib.ts";
+import { getBranchWorktrees, getRemovableBranches, getRemovableWorktrees, prompt } from "./git.ts";
+import { isNotNull } from "./lib.ts";
 
 // Fetch the latest upstream branches
 await $`git fetch --prune`;

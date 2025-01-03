@@ -8,7 +8,7 @@ import {
   getRemovableWorktrees,
   getWorktrees,
   prompt,
-} from "./lib.ts";
+} from "./git.ts";
 
 const wildcard = Symbol("anyString");
 
