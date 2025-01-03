@@ -8,6 +8,7 @@ import {
   getRemovableWorktrees,
   getWorktrees,
   prompt,
+  setIgnoredBranches,
 } from "./git.ts";
 
 const wildcard = Symbol("anyString");
@@ -241,6 +242,27 @@ describe("getIgnoredBranches", () => {
 
     const $ = build$({ commandBuilder });
     expect(await getIgnoredBranches($)).toEqual([]);
+  });
+});
+
+describe("setIgnoredBranches", () => {
+  it("parses the git config", async () => {
+    const commandBuilder = new CommandBuilder()
+      .registerCommand(
+        "git",
+        ({ args }) => {
+          if (
+            !arrayCompare(args, ["config", "set", "cleanup.ignoredBranches", "branch-1 branch-2"])
+          ) {
+            throw new Error(`git called with unexpected arguments: ${args.join(" ")}`);
+          }
+
+          return { code: 0 };
+        },
+      );
+
+    const $ = build$({ commandBuilder });
+    await setIgnoredBranches($, ["branch-1", "branch-2"]);
   });
 });
 

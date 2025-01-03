@@ -1,6 +1,12 @@
 import { $ } from "@david/dax";
 import { mapNotNullish } from "@std/collections";
-import { getBranchWorktrees, getRemovableBranches, getRemovableWorktrees, prompt } from "./git.ts";
+import {
+  getBranchWorktrees,
+  getRemovableBranches,
+  getRemovableWorktrees,
+  prompt,
+  setIgnoredBranches,
+} from "./git.ts";
 
 // Fetch the latest upstream branches
 await $`git fetch --prune`;
@@ -51,5 +57,4 @@ if (selectedBranches.length > 0) {
 }
 
 // Remember branches that were deselected so that they start out deselected next time
-const ignoredBranches = unselectedBranches.map(({ text: name }) => name).join(" ");
-await $`git config set cleanup.ignoredBranches ${ignoredBranches}`;
+setIgnoredBranches($, unselectedBranches.map(({ text: name }) => name));

@@ -108,11 +108,18 @@ export const getRemovableBranches = async ($: $Type): Promise<RemovableBranch[]>
 };
 
 /**
- * Return an array of the branches that were ignored in a previous run.
+ * Return a list of the branches that were ignored in a previous run.
  */
 export const getIgnoredBranches = async ($: $Type): Promise<string[]> => {
   const branches = await $`git config get cleanup.ignoredBranches`.noThrow().text();
   return branches.length > 0 ? branches.split(" ") : [];
+};
+
+/**
+ * Save the list of branches that should be ignored in future runs.
+ */
+export const setIgnoredBranches = async ($: $Type, branches: string[]): Promise<void> => {
+  await $`git config set cleanup.ignoredBranches ${branches.join(" ")}`;
 };
 
 /**
