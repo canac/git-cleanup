@@ -123,6 +123,25 @@ export const setIgnoredBranches = async ($: $Type, branches: string[]): Promise<
 };
 
 /**
+ * Delete a list of branches.
+ */
+export const deleteBranches = async ($: $Type, branches: string[]): Promise<void> => {
+  if (branches.length === 0) {
+    return;
+  }
+
+  // Detach any worktree using a branch being deleted
+  const branchWorktrees = await getBranchWorktrees($);
+  const detaching = mapNotNullish(branches, (branch) => branchWorktrees.get(branch));
+  await Promise.all(
+    detaching.map((worktree) => $`git -C ${worktree} switch --detach`.printCommand()),
+  );
+
+  // Delete all branches at once
+  await $`git branch -D ${branches}`.printCommand();
+};
+
+/**
  * Return a map of checked out branches and their worktree path.
  */
 export const getBranchWorktrees = async (

@@ -2,6 +2,7 @@ import { build$, CommandBuilder, type MultiSelectOption } from "@david/dax";
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import {
+  deleteBranches,
   getBranchWorktrees,
   getIgnoredBranches,
   getRemovableBranches,
@@ -266,32 +267,60 @@ describe("setIgnoredBranches", () => {
   });
 });
 
+describe("deleteBranches", () => {
+  it("detaches worktrees and deletes the branches", async () => {
+    const calls: string[][] = [];
+    const commandBuilder = new CommandBuilder()
+      .registerCommand(
+        "git",
+        async ({ args, stdout }) => {
+          calls.push(args);
+
+          if (arrayCompare(args, ["worktree", "list", "--porcelain"])) {
+            stdout.writeText(await Deno.readTextFile("./fixtures/worktree-list.output"));
+          }
+
+          return { code: 0 };
+        },
+      );
+
+    const $ = build$({ commandBuilder });
+    await deleteBranches($, ["worktree-1", "worktree-3"]);
+    expect(calls).toEqual([
+      ["worktree", "list", "--porcelain"],
+      ["-C", "/dev/worktree-1", "switch", "--detach"],
+      ["branch", "-D", "worktree-1", "worktree-3"],
+    ]);
+  });
+
+  it("does nothing when there are no branches to delete", async () => {
+    const calls: string[][] = [];
+    const commandBuilder = new CommandBuilder()
+      .registerCommand(
+        "git",
+        ({ args }) => {
+          calls.push(args);
+          return { code: 0 };
+        },
+      );
+
+    const $ = build$({ commandBuilder });
+    await deleteBranches($, []);
+    expect(calls).toEqual([]);
+  });
+});
+
 describe("getBranchWorktrees", () => {
   it("returns a map of worktree paths and their branches, filtering out detached worktrees", async () => {
     const commandBuilder = new CommandBuilder()
       .registerCommand(
         "git",
-        ({ args, stdout }) => {
+        async ({ args, stdout }) => {
           if (!arrayCompare(args, ["worktree", "list", "--porcelain"])) {
             throw new Error(`git called with unexpected arguments: ${args.join(" ")}`);
           }
 
-          stdout.writeText(`worktree /dev/project
-HEAD 0000000000000000000000000000000000000000
-branch refs/heads/main
-
-worktree /dev/worktree-1
-HEAD 1111111111111111111111111111111111111111
-branch refs/heads/worktree-1
-
-worktree /dev/worktree-2
-HEAD 2222222222222222222222222222222222222222
-branch refs/heads/worktree-2
-
-worktree /dev/worktree-3
-HEAD 3333333333333333333333333333333333333333
-detached
-`);
+          stdout.writeText(await Deno.readTextFile("./fixtures/worktree-list.output"));
           return { code: 0 };
         },
       );

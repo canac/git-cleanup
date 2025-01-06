@@ -1,7 +1,6 @@
 import { $ } from "@david/dax";
-import { mapNotNullish } from "@std/collections";
 import {
-  getBranchWorktrees,
+  deleteBranches,
   getRemovableBranches,
   getRemovableWorktrees,
   prompt,
@@ -15,10 +14,7 @@ const removableWorktrees = await getRemovableWorktrees($);
 const [selectedWorktrees, unselectedWorktrees] = await prompt(
   $,
   "Which worktrees do you want to clean up?",
-  removableWorktrees.map(({ path, ignored }) => ({
-    text: path,
-    selected: !ignored,
-  })),
+  removableWorktrees.map(({ path, ignored }) => ({ text: path, selected: !ignored })),
 );
 await Promise.all([
   // Remove the selected worktrees
@@ -35,26 +31,8 @@ const removableBranches = await getRemovableBranches($);
 const [selectedBranches, unselectedBranches] = await prompt(
   $,
   "Which branches do you want to clean up?",
-  removableBranches.map(({ name, ignored }) => ({
-    text: name,
-    selected: !ignored,
-  })),
+  removableBranches.map(({ name, ignored }) => ({ text: name, selected: !ignored })),
 );
-
-// Detach any worktree using a branch being deleted
-const branchWorktrees = await getBranchWorktrees($);
-const detaching = mapNotNullish(
-  selectedBranches,
-  ({ text: branch }) => branchWorktrees.get(branch) ?? null,
-);
-await Promise.all(
-  detaching.map((worktree) => $`git -C ${worktree} switch --detach`.printCommand()),
-);
-
-if (selectedBranches.length > 0) {
-  // Delete all branches at once
-  await $`git branch -D ${selectedBranches.map(({ text: name }) => name)}`.printCommand();
-}
-
+await deleteBranches($, selectedBranches.map(({ text: branch }) => branch));
 // Remember branches that were deselected so that they start out deselected next time
 setIgnoredBranches($, unselectedBranches.map(({ text: name }) => name));
