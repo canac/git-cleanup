@@ -1,8 +1,10 @@
 import { $ } from "@david/dax";
 import {
   deleteBranches,
+  deleteWorktree,
   getRemovableBranches,
   getRemovableWorktrees,
+  ignoreWorktree,
   prompt,
   setIgnoredBranches,
 } from "./git.ts";
@@ -18,13 +20,11 @@ const [selectedWorktrees, unselectedWorktrees] = await prompt(
 );
 await Promise.all([
   // Remove the selected worktrees
-  ...selectedWorktrees.map(({ text: path }) =>
-    $`git worktree remove ${path} --force`.printCommand()
-  ),
+  ...selectedWorktrees.map(({ text: path }) => deleteWorktree($, path)),
   // Ignore any worktrees manually deselected so that they will start out deselected next time
   ...unselectedWorktrees
     .filter(({ selected: initiallySelected }) => initiallySelected)
-    .map(({ text: path }) => $`git -C ${path} config set --worktree cleanup.ignore true`),
+    .map(({ text: path }) => ignoreWorktree($, path)),
 ]);
 
 const removableBranches = await getRemovableBranches($);

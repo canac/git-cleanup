@@ -3,11 +3,13 @@ import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import {
   deleteBranches,
+  deleteWorktree,
   getBranchWorktrees,
   getIgnoredBranches,
   getRemovableBranches,
   getRemovableWorktrees,
   getWorktrees,
+  ignoreWorktree,
   prompt,
   setIgnoredBranches,
 } from "./git.ts";
@@ -100,6 +102,46 @@ describe("getWorktrees", () => {
   });
 });
 
+describe("deleteWorktree", () => {
+  it("deletes the worktree", async () => {
+    const calls: string[][] = [];
+    const commandBuilder = new CommandBuilder()
+      .registerCommand(
+        "git",
+        ({ args }) => {
+          calls.push(args);
+          return { code: 0 };
+        },
+      );
+
+    const $ = build$({ commandBuilder });
+    await deleteWorktree($, "/dev/worktree-1");
+    expect(calls).toEqual([
+      ["worktree", "remove", "/dev/worktree-1", "--force"],
+    ]);
+  });
+});
+
+describe("ignoreWorktree", () => {
+  it("marks the worktree as ignored", async () => {
+    const calls: string[][] = [];
+    const commandBuilder = new CommandBuilder()
+      .registerCommand(
+        "git",
+        ({ args }) => {
+          calls.push(args);
+          return { code: 0 };
+        },
+      );
+
+    const $ = build$({ commandBuilder });
+    await ignoreWorktree($, "/dev/worktree-1");
+    expect(calls).toEqual([
+      ["-C", "/dev/worktree-1", "config", "set", "--worktree", "cleanup.ignore", "true"],
+    ]);
+  });
+});
+
 describe("getRemovableWorktrees", () => {
   it("returns an array of merged worktrees with their ignored state", async () => {
     const commandBuilder = new CommandBuilder()
@@ -147,9 +189,7 @@ describe("getRemovableWorktrees", () => {
         { ignored: false, path: "/dev/worktree-2" },
       ]);
   });
-});
 
-describe("getRemovableBranches", () => {
   it("returns an array of merged branches, backup branches of merged branches, and orphaned backup branches with their ignored state", async () => {
     const commandBuilder = new CommandBuilder()
       .registerCommand(
