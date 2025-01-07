@@ -1,4 +1,5 @@
 import { $Type, build$, CommandBuilder } from "@david/dax";
+import { equal } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import {
@@ -12,17 +13,6 @@ import {
   ignoreWorktree,
   setIgnoredBranches,
 } from "./git.ts";
-
-/**
- * Determine whether two arrays of strings contain exactly the same set of items.
- */
-const arrayCompare = (
-  arr1: string[],
-  arr2: string[],
-): boolean => {
-  return arr1.length === arr2.length &&
-    arr1.every((item1, index) => item1 === arr2[index]);
-};
 
 interface ExpectedCall {
   args: string[];
@@ -62,7 +52,7 @@ const mock$ = (expectedCalls?: ExpectedCall[]): Mock$Response => {
         if (remainingExpectedCalls) {
           const expectedCall = remainingExpectedCalls[0];
 
-          if (!expectedCall || !arrayCompare(expectedCall.args, args)) {
+          if (!expectedCall || !equal(expectedCall.args, args)) {
             throw new Error(
               `Unexpected git call
 
@@ -116,24 +106,6 @@ worktree /dev/worktree-3
 HEAD 3333333333333333333333333333333333333333
 detached
 `;
-
-describe("arrayCompare", () => {
-  it("returns true when the arrays are equal", () => {
-    expect(arrayCompare(["a", "b", "c"], ["a", "b", "c"])).toBe(true);
-  });
-
-  it("returns true when the arrays are different", () => {
-    expect(arrayCompare(["a", "b", "d"], ["a", "b", "c"])).toBe(false);
-  });
-
-  it("returns false when the first array is shorter", () => {
-    expect(arrayCompare(["a", "b"], ["a", "b", "c"])).toBe(false);
-  });
-
-  it("returns false when the first array is longer", () => {
-    expect(arrayCompare(["a", "b", "c", "d"], ["a", "b", "c"])).toBe(false);
-  });
-});
 
 describe("getWorktrees", () => {
   it("returns an array of worktree paths", async () => {

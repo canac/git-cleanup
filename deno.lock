@@ -5,6 +5,7 @@
     "jsr:@david/path@0.2": "0.2.0",
     "jsr:@david/which@~0.4.1": "0.4.1",
     "jsr:@std/assert@0.221": "0.221.0",
+    "jsr:@std/assert@1": "1.0.9",
     "jsr:@std/assert@^1.0.9": "1.0.9",
     "jsr:@std/bytes@0.221": "0.221.0",
     "jsr:@std/collections@1": "1.0.9",
@@ -103,6 +104,7 @@
   "workspace": {
     "dependencies": [
       "jsr:@david/dax@0.42",
+      "jsr:@std/assert@1",
       "jsr:@std/collections@1",
       "jsr:@std/expect@1",
       "jsr:@std/testing@1"
