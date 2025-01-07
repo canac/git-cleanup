@@ -11,5 +11,8 @@
   },
   "fmt": {
     "lineWidth": 100
+  },
+  "compilerOptions": {
+    "noUncheckedIndexedAccess": true
   }
 }

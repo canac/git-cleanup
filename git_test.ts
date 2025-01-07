@@ -1,4 +1,4 @@
-import { build$, CommandBuilder, type MultiSelectOption } from "@david/dax";
+import { $Type, build$, CommandBuilder, type MultiSelectOption } from "@david/dax";
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import {
@@ -14,27 +14,113 @@ import {
   setIgnoredBranches,
 } from "./git.ts";
 
-const wildcard = Symbol("anyString");
-
 /**
- * Determine whether two arrays of strings contain exactly the same set of items. If an item in the
- * second array is the `wildcard` symbol, it will match any string.
+ * Determine whether two arrays of strings contain exactly the same set of items.
  */
 const arrayCompare = (
   arr1: string[],
-  arr2: (string | symbol)[],
+  arr2: string[],
 ): boolean => {
   return arr1.length === arr2.length &&
-    arr1.every((item1, index) => item1 === arr2[index] || arr2[index] === wildcard);
+    arr1.every((item1, index) => item1 === arr2[index]);
 };
+
+interface ExpectedCall {
+  args: string[];
+  output?: string;
+  error?: true;
+}
+
+interface Mock$Response {
+  /** The mocked $ object */
+  $: $Type;
+
+  /**
+   * An array of the args for each time that git was called. If `expectedCalls` is not provided, it
+   * should be used to assert that the calls to git were exactly as expected.
+   */
+  calls: string[][];
+
+  /**
+   * Assert that git was called with all of the expected calls. If `expectedCalls` is provided, it
+   * should be called at the end of the test.
+   */
+  assertNoRemainingCalls: () => void;
+}
+
+/*
+ * Create a $ object that intercepts and optionally mocks responses to `git` commands.
+ */
+const mock$ = (expectedCalls?: ExpectedCall[]): Mock$Response => {
+  const calls: string[][] = [];
+  const remainingExpectedCalls = expectedCalls?.slice();
+  const commandBuilder = new CommandBuilder()
+    .registerCommand(
+      "git",
+      ({ args, stdout }) => {
+        calls.push(args);
+
+        if (remainingExpectedCalls) {
+          const expectedCall = remainingExpectedCalls[0];
+
+          if (!expectedCall || !arrayCompare(expectedCall.args, args)) {
+            throw new Error(
+              `Unexpected git call
+
+Expected call: ${expectedCall ? Deno.inspect(expectedCall.args) : "none"}
+Actual call:   ${Deno.inspect(args)}
+All calls:
+${calls.map((call) => Deno.inspect(call)).join("\n")}`,
+            );
+          }
+          remainingExpectedCalls.shift();
+
+          if (expectedCall.output) {
+            stdout.writeText(expectedCall.output);
+          }
+
+          if (expectedCall.error) {
+            return { code: 1 };
+          }
+        }
+
+        return { code: 0 };
+      },
+    );
+
+  const $ = build$({ commandBuilder });
+  return {
+    $,
+    calls,
+    assertNoRemainingCalls: () => {
+      // Do nothing if expectedCalls was not provided
+      if (remainingExpectedCalls) {
+        expect(remainingExpectedCalls).toEqual([]);
+      }
+    },
+  };
+};
+
+const worktreeListOutput = `worktree /dev/project
+HEAD 0000000000000000000000000000000000000000
+branch refs/heads/main
+
+worktree /dev/worktree-1
+HEAD 1111111111111111111111111111111111111111
+branch refs/heads/worktree-1
+
+worktree /dev/worktree-2
+HEAD 2222222222222222222222222222222222222222
+branch refs/heads/worktree-2
+
+worktree /dev/worktree-3
+HEAD 3333333333333333333333333333333333333333
+detached
+`;
 
 describe("arrayCompare", () => {
   it("returns true when the arrays are equal", () => {
     expect(arrayCompare(["a", "b", "c"], ["a", "b", "c"])).toBe(true);
-  });
-
-  it("returns true when the array contains wildcards", () => {
-    expect(arrayCompare(["a", "b", "c"], ["a", "b", wildcard])).toBe(true);
   });
 
   it("returns true when the arrays are different", () => {
@@ -80,41 +166,21 @@ describe("prompt", () => {
 
 describe("getWorktrees", () => {
   it("returns an array of worktree paths", async () => {
-    const commandBuilder = new CommandBuilder()
-      .registerCommand(
-        "git",
-        async ({ args, stdout }) => {
-          if (!arrayCompare(args, ["worktree", "list", "--porcelain"])) {
-            throw new Error(`git called with unexpected arguments: ${args.join(" ")}`);
-          }
-
-          stdout.writeText(await Deno.readTextFile("./fixtures/worktree-list.output"));
-          return { code: 0 };
-        },
-      );
-
-    const $ = build$({ commandBuilder });
+    const { $, assertNoRemainingCalls } = mock$([
+      { args: ["worktree", "list", "--porcelain"], output: worktreeListOutput },
+    ]);
     expect(await getWorktrees($)).toEqual([
       "/dev/worktree-1",
       "/dev/worktree-2",
       "/dev/worktree-3",
     ]);
+    assertNoRemainingCalls();
   });
 });
 
 describe("deleteWorktree", () => {
   it("deletes the worktree", async () => {
-    const calls: string[][] = [];
-    const commandBuilder = new CommandBuilder()
-      .registerCommand(
-        "git",
-        ({ args }) => {
-          calls.push(args);
-          return { code: 0 };
-        },
-      );
-
-    const $ = build$({ commandBuilder });
+    const { $, calls } = mock$();
     await deleteWorktree($, "/dev/worktree-1");
     expect(calls).toEqual([
       ["worktree", "remove", "/dev/worktree-1", "--force"],
@@ -124,17 +190,7 @@ describe("deleteWorktree", () => {
 
 describe("ignoreWorktree", () => {
   it("marks the worktree as ignored", async () => {
-    const calls: string[][] = [];
-    const commandBuilder = new CommandBuilder()
-      .registerCommand(
-        "git",
-        ({ args }) => {
-          calls.push(args);
-          return { code: 0 };
-        },
-      );
-
-    const $ = build$({ commandBuilder });
+    const { $, calls } = mock$();
     await ignoreWorktree($, "/dev/worktree-1");
     expect(calls).toEqual([
       ["-C", "/dev/worktree-1", "config", "set", "--worktree", "cleanup.ignore", "true"],
@@ -144,61 +200,52 @@ describe("ignoreWorktree", () => {
 
 describe("getRemovableWorktrees", () => {
   it("returns an array of merged worktrees with their ignored state", async () => {
-    const commandBuilder = new CommandBuilder()
-      .registerCommand(
-        "git",
-        async ({ args, stdout }) => {
-          if (arrayCompare(args, ["worktree", "list", "--porcelain"])) {
-            stdout.writeText(await Deno.readTextFile("./fixtures/worktree-list.output"));
-            return { code: 0 };
-          } else if (arrayCompare(args, ["config", "set", "extensions.worktreeconfig", "true"])) {
-            return { code: 0 };
-          } else if (
-            arrayCompare(args, ["-C", wildcard, "branch", "--format", "%(upstream:track) %(HEAD)"])
-          ) {
-            if (args[1] === "/dev/worktree-1" || args[1] === "/dev/worktree-2") {
-              // Current branch is deleted upstream
-              stdout.writeText("[gone] *");
-            } else {
-              // A different branch is deleted upstream
-              stdout.writeText(" *\n[gone]");
-            }
-            return { code: 0 };
-          } else if (
-            arrayCompare(args, ["-C", wildcard, "config", "get", "--worktree", "cleanup.ignore"])
-          ) {
-            if (args[1] === "/dev/worktree-1") {
-              stdout.writeText("true");
-            } else if (args[1] === "/dev/worktree-2") {
-              stdout.writeText("false");
-            } else {
-              // Config key does not exist
-              return { code: 1 };
-            }
-            return { code: 0 };
-          }
-
-          throw new Error(`git called with unexpected arguments: ${args.join(" ")}`);
+    const { $, assertNoRemainingCalls } = mock$(
+      [
+        { args: ["worktree", "list", "--porcelain"], output: worktreeListOutput },
+        { args: ["config", "set", "extensions.worktreeconfig", "true"] },
+        {
+          args: ["-C", "/dev/worktree-1", "branch", "--format", "%(upstream:track) %(HEAD)"],
+          output: "[gone] *", // current branch is deleted upstream
         },
-      );
+        {
+          args: ["-C", "/dev/worktree-1", "config", "get", "--worktree", "cleanup.ignore"],
+          output: "true",
+        },
+        {
+          args: ["-C", "/dev/worktree-2", "branch", "--format", "%(upstream:track) %(HEAD)"],
+          output: "[gone] *", // current branch is deleted upstream
+        },
+        {
+          args: ["-C", "/dev/worktree-2", "config", "get", "--worktree", "cleanup.ignore"],
+          output: "false", // a different branch is deleted upstream
+        },
+        {
+          args: ["-C", "/dev/worktree-3", "branch", "--format", "%(upstream:track) %(HEAD)"],
+          output: " *\n[gone]",
+        },
+        {
+          args: ["-C", "/dev/worktree-3", "config", "get", "--worktree", "cleanup.ignore"],
+          error: true, // config key does not exist
+        },
+      ],
+    );
 
-    const $ = build$({ commandBuilder });
     expect(await getRemovableWorktrees($))
       .toEqual([
         { ignored: true, path: "/dev/worktree-1" },
         { ignored: false, path: "/dev/worktree-2" },
       ]);
+    assertNoRemainingCalls();
   });
 
   it("returns an array of merged branches, backup branches of merged branches, and orphaned backup branches with their ignored state", async () => {
-    const commandBuilder = new CommandBuilder()
-      .registerCommand(
-        "git",
-        ({ args, stdout }) => {
-          if (
-            arrayCompare(args, ["branch", "--format", "%(refname:short)%(upstream:track)"])
-          ) {
-            stdout.writeText(`main
+    const { $, assertNoRemainingCalls } = mock$([{
+      args: ["config", "get", "cleanup.ignoredBranches"],
+      output: "deleted-upstream-backup orphaned-backup2",
+    }, {
+      args: ["branch", "--format", "%(refname:short)%(upstream:track)"],
+      output: `main
 deleted-upstream[gone]
 deleted-upstream-backup
 deleted-upstream-backup-branch
@@ -209,18 +256,9 @@ main-backup2
 orphaned-backup
 orphaned-backup-branch
 orphaned-backup2
-`);
-          } else if (arrayCompare(args, ["config", "get", "cleanup.ignoredBranches"])) {
-            stdout.writeText("deleted-upstream-backup orphaned-backup2");
-          } else {
-            throw new Error(`git called with unexpected arguments: ${args.join(" ")}`);
-          }
+`,
+    }]);
 
-          return { code: 0 };
-        },
-      );
-
-    const $ = build$({ commandBuilder });
     expect(await getRemovableBranches($)).toEqual([
       { name: "deleted-upstream", ignored: false },
       { name: "deleted-upstream-backup", ignored: true },
@@ -229,122 +267,65 @@ orphaned-backup2
       { name: "orphaned-backup", ignored: false },
       { name: "orphaned-backup2", ignored: true },
     ]);
+    assertNoRemainingCalls();
   });
 });
 
 describe("getIgnoredBranches", () => {
   it("parses the git config", async () => {
-    const commandBuilder = new CommandBuilder()
-      .registerCommand(
-        "git",
-        ({ args, stdout }) => {
-          if (!arrayCompare(args, ["config", "get", "cleanup.ignoredBranches"])) {
-            throw new Error(`git called with unexpected arguments: ${args.join(" ")}`);
-          }
+    const { $, assertNoRemainingCalls } = mock$([
+      { args: ["config", "get", "cleanup.ignoredBranches"], output: "branch-1 branch-3" },
+    ]);
 
-          stdout.writeText("branch-1 branch-3");
-          return { code: 0 };
-        },
-      );
-
-    const $ = build$({ commandBuilder });
     expect(await getIgnoredBranches($)).toEqual(["branch-1", "branch-3"]);
+    assertNoRemainingCalls();
   });
 
   it("handles missing config", async () => {
-    const commandBuilder = new CommandBuilder()
-      .registerCommand(
-        "git",
-        ({ args }) => {
-          if (!arrayCompare(args, ["config", "get", "cleanup.ignoredBranches"])) {
-            throw new Error(`git called with unexpected arguments: ${args.join(" ")}`);
-          }
+    const { $, assertNoRemainingCalls } = mock$([
+      { args: ["config", "get", "cleanup.ignoredBranches"], error: true },
+    ]);
 
-          return { code: 1 };
-        },
-      );
-
-    const $ = build$({ commandBuilder });
     expect(await getIgnoredBranches($)).toEqual([]);
+    assertNoRemainingCalls();
   });
 
   it("handles blank", async () => {
-    const commandBuilder = new CommandBuilder()
-      .registerCommand(
-        "git",
-        ({ args }) => {
-          if (!arrayCompare(args, ["config", "get", "cleanup.ignoredBranches"])) {
-            throw new Error(`git called with unexpected arguments: ${args.join(" ")}`);
-          }
+    const { $, assertNoRemainingCalls } = mock$([
+      { args: ["config", "get", "cleanup.ignoredBranches"] },
+    ]);
 
-          return { code: 0 };
-        },
-      );
-
-    const $ = build$({ commandBuilder });
     expect(await getIgnoredBranches($)).toEqual([]);
+    assertNoRemainingCalls();
   });
 });
 
 describe("setIgnoredBranches", () => {
   it("parses the git config", async () => {
-    const commandBuilder = new CommandBuilder()
-      .registerCommand(
-        "git",
-        ({ args }) => {
-          if (
-            !arrayCompare(args, ["config", "set", "cleanup.ignoredBranches", "branch-1 branch-2"])
-          ) {
-            throw new Error(`git called with unexpected arguments: ${args.join(" ")}`);
-          }
+    const { $, calls } = mock$();
 
-          return { code: 0 };
-        },
-      );
-
-    const $ = build$({ commandBuilder });
     await setIgnoredBranches($, ["branch-1", "branch-2"]);
+    expect(calls).toEqual([
+      ["config", "set", "cleanup.ignoredBranches", "branch-1 branch-2"],
+    ]);
   });
 });
 
 describe("deleteBranches", () => {
   it("detaches worktrees and deletes the branches", async () => {
-    const calls: string[][] = [];
-    const commandBuilder = new CommandBuilder()
-      .registerCommand(
-        "git",
-        async ({ args, stdout }) => {
-          calls.push(args);
-
-          if (arrayCompare(args, ["worktree", "list", "--porcelain"])) {
-            stdout.writeText(await Deno.readTextFile("./fixtures/worktree-list.output"));
-          }
-
-          return { code: 0 };
-        },
-      );
-
-    const $ = build$({ commandBuilder });
-    await deleteBranches($, ["worktree-1", "worktree-3"]);
-    expect(calls).toEqual([
-      ["worktree", "list", "--porcelain"],
-      ["-C", "/dev/worktree-1", "switch", "--detach"],
-      ["branch", "-D", "worktree-1", "worktree-3"],
+    const { $, assertNoRemainingCalls } = mock$([
+      { args: ["worktree", "list", "--porcelain"], output: worktreeListOutput },
+      { args: ["-C", "/dev/worktree-1", "switch", "--detach"] },
+      { args: ["branch", "-D", "worktree-1", "worktree-3"] },
     ]);
+
+    await deleteBranches($, ["worktree-1", "worktree-3"]);
+    assertNoRemainingCalls();
   });
 
   it("does nothing when there are no branches to delete", async () => {
-    const calls: string[][] = [];
-    const commandBuilder = new CommandBuilder()
-      .registerCommand(
-        "git",
-        ({ args }) => {
-          calls.push(args);
-          return { code: 0 };
-        },
-      );
+    const { $, calls } = mock$();
 
-    const $ = build$({ commandBuilder });
     await deleteBranches($, []);
     expect(calls).toEqual([]);
   });
@@ -352,20 +333,10 @@ describe("deleteBranches", () => {
 
 describe("getBranchWorktrees", () => {
   it("returns a map of worktree paths and their branches, filtering out detached worktrees", async () => {
-    const commandBuilder = new CommandBuilder()
-      .registerCommand(
-        "git",
-        async ({ args, stdout }) => {
-          if (!arrayCompare(args, ["worktree", "list", "--porcelain"])) {
-            throw new Error(`git called with unexpected arguments: ${args.join(" ")}`);
-          }
+    const { $, assertNoRemainingCalls } = mock$([
+      { args: ["worktree", "list", "--porcelain"], output: worktreeListOutput },
+    ]);
 
-          stdout.writeText(await Deno.readTextFile("./fixtures/worktree-list.output"));
-          return { code: 0 };
-        },
-      );
-
-    const $ = build$({ commandBuilder });
     expect(await getBranchWorktrees($)).toEqual(
       new Map([
         ["main", "/dev/project"],
@@ -373,5 +344,6 @@ describe("getBranchWorktrees", () => {
         ["worktree-2", "/dev/worktree-2"],
       ]),
     );
+    assertNoRemainingCalls();
   });
 });
