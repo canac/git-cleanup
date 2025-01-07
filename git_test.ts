@@ -25,67 +25,56 @@ interface Mock$Response {
   $: $Type;
 
   /**
-   * An array of the args for each time that git was called. If `expectedCalls` is not provided, it
-   * should be used to assert that the calls to git were exactly as expected.
-   */
-  calls: string[][];
-
-  /**
-   * Assert that git was called with all of the expected calls. If `expectedCalls` is provided, it
-   * should be called at the end of the test.
+   * Assert that git was called with all of the expected calls. It should be called at the end of
+   * the test.
    */
   assertNoRemainingCalls: () => void;
 }
 
-/*
+/**
  * Create a $ object that intercepts and optionally mocks responses to `git` commands.
+ *
+ * @param expectedCalls An array of expected calls to `git`. Each entry can be an array of the
+ * expected arguments for the call or an `ExpectedCall` object to mock the output and/or status
+ * code of the call.
  */
-const mock$ = (expectedCalls?: ExpectedCall[]): Mock$Response => {
+const mock$ = (expectedCalls: (string[] | ExpectedCall)[]): Mock$Response => {
   const calls: string[][] = [];
-  const remainingExpectedCalls = expectedCalls?.slice();
+  // Clone the array and convert args arrays to ExpectedCall objects
+  const remainingCalls = expectedCalls.map((call) => Array.isArray(call) ? { args: call } : call);
   const commandBuilder = new CommandBuilder()
     .registerCommand(
       "git",
       ({ args, stdout }) => {
         calls.push(args);
 
-        if (remainingExpectedCalls) {
-          const expectedCall = remainingExpectedCalls[0];
+        const expectedCall = remainingCalls[0];
 
-          if (!expectedCall || !equal(expectedCall.args, args)) {
-            throw new Error(
-              `Unexpected git call
+        if (!expectedCall || !equal(expectedCall.args, args)) {
+          throw new Error(
+            `Unexpected git call
 
 Expected call: ${expectedCall ? Deno.inspect(expectedCall.args) : "none"}
 Actual call:   ${Deno.inspect(args)}
 All calls:
 ${calls.map((call) => Deno.inspect(call)).join("\n")}`,
-            );
-          }
-          remainingExpectedCalls.shift();
+          );
+        }
+        remainingCalls.shift();
 
-          if (expectedCall.output) {
-            stdout.writeText(expectedCall.output);
-          }
-
-          if (expectedCall.error) {
-            return { code: 1 };
-          }
+        if (expectedCall.output) {
+          stdout.writeText(expectedCall.output);
         }
 
-        return { code: 0 };
+        return { code: expectedCall.error ? 1 : 0 };
       },
     );
 
   const $ = build$({ commandBuilder });
   return {
     $,
-    calls,
     assertNoRemainingCalls: () => {
-      // Do nothing if expectedCalls was not provided
-      if (remainingExpectedCalls) {
-        expect(remainingExpectedCalls).toEqual([]);
-      }
+      expect(remainingCalls).toEqual([]);
     },
   };
 };
@@ -123,22 +112,22 @@ describe("getWorktrees", () => {
 
 describe("deleteWorktree", () => {
   it("deletes the worktree", async () => {
-    const { $, calls } = mock$();
-    await deleteWorktree($, "/dev/worktree-1");
-    expect(calls).toEqual([
+    const { $, assertNoRemainingCalls } = mock$([
       ["worktree", "remove", "/dev/worktree-1", "--force"],
     ]);
+    await deleteWorktree($, "/dev/worktree-1");
+    assertNoRemainingCalls();
   });
 });
 
 describe("ignoreWorktree", () => {
   it("marks the worktree as ignored", async () => {
-    const { $, calls } = mock$();
-    await ignoreWorktree($, "/dev/worktree-1");
-    expect(calls).toEqual([
+    const { $, assertNoRemainingCalls } = mock$([
       ["config", "set", "extensions.worktreeconfig", "true"],
       ["-C", "/dev/worktree-1", "config", "set", "--worktree", "cleanup.ignore", "true"],
     ]);
+    await ignoreWorktree($, "/dev/worktree-1");
+    assertNoRemainingCalls();
   });
 });
 
@@ -235,7 +224,7 @@ describe("getIgnoredBranches", () => {
 
   it("handles blank", async () => {
     const { $, assertNoRemainingCalls } = mock$([
-      { args: ["config", "get", "cleanup.ignoredBranches"] },
+      ["config", "get", "cleanup.ignoredBranches"],
     ]);
 
     expect(await getIgnoredBranches($)).toEqual([]);
@@ -245,12 +234,12 @@ describe("getIgnoredBranches", () => {
 
 describe("setIgnoredBranches", () => {
   it("parses the git config", async () => {
-    const { $, calls } = mock$();
-
-    await setIgnoredBranches($, ["branch-1", "branch-2"]);
-    expect(calls).toEqual([
+    const { $, assertNoRemainingCalls } = mock$([
       ["config", "set", "cleanup.ignoredBranches", "branch-1 branch-2"],
     ]);
+
+    await setIgnoredBranches($, ["branch-1", "branch-2"]);
+    assertNoRemainingCalls();
   });
 });
 
@@ -258,8 +247,8 @@ describe("deleteBranches", () => {
   it("detaches worktrees and deletes the branches", async () => {
     const { $, assertNoRemainingCalls } = mock$([
       { args: ["worktree", "list", "--porcelain"], output: worktreeListOutput },
-      { args: ["-C", "/dev/worktree-1", "switch", "--detach"] },
-      { args: ["branch", "-D", "worktree-1", "worktree-3"] },
+      ["-C", "/dev/worktree-1", "switch", "--detach"],
+      ["branch", "-D", "worktree-1", "worktree-3"],
     ]);
 
     await deleteBranches($, ["worktree-1", "worktree-3"]);
@@ -267,10 +256,10 @@ describe("deleteBranches", () => {
   });
 
   it("does nothing when there are no branches to delete", async () => {
-    const { $, calls } = mock$();
+    const { $, assertNoRemainingCalls } = mock$([]);
 
     await deleteBranches($, []);
-    expect(calls).toEqual([]);
+    assertNoRemainingCalls();
   });
 });
 
