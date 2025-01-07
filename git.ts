@@ -15,12 +15,7 @@ interface RemovableWorktree {
 export const getRemovableWorktrees = async (
   $: $Type,
 ): Promise<RemovableWorktree[]> => {
-  const [worktrees] = await Promise.all([
-    getWorktrees($),
-    // Enable storing cleanup.ignore worktree-specific config
-    $`git config set extensions.worktreeconfig true`,
-  ]);
-
+  const worktrees = await getWorktrees($);
   const removableWorktrees = await Promise.all(worktrees.map(async (path) => {
     // If the worktree's current branch is deleted upstream, its entry will be [gone] *
     const deletedPromise = $`git -C ${path} branch --format '%(upstream:track) %(HEAD)'`.lines()
@@ -59,7 +54,7 @@ export const deleteWorktree = async ($: $Type, path: string): Promise<void> => {
  * Mark a worktree as ignored.
  */
 export const ignoreWorktree = async ($: $Type, path: string): Promise<void> => {
-  await $`git -C ${path} config set --worktree cleanup.ignore true`;
+  await $`git config set extensions.worktreeconfig true && git -C ${path} config set --worktree cleanup.ignore true`;
 };
 
 interface RemovableBranch {

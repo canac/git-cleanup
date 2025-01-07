@@ -164,6 +164,7 @@ describe("ignoreWorktree", () => {
     const { $, calls } = mock$();
     await ignoreWorktree($, "/dev/worktree-1");
     expect(calls).toEqual([
+      ["config", "set", "extensions.worktreeconfig", "true"],
       ["-C", "/dev/worktree-1", "config", "set", "--worktree", "cleanup.ignore", "true"],
     ]);
   });
@@ -174,7 +175,6 @@ describe("getRemovableWorktrees", () => {
     const { $, assertNoRemainingCalls } = mock$(
       [
         { args: ["worktree", "list", "--porcelain"], output: worktreeListOutput },
-        { args: ["config", "set", "extensions.worktreeconfig", "true"] },
         {
           args: ["-C", "/dev/worktree-1", "branch", "--format", "%(upstream:track) %(HEAD)"],
           output: "[gone] *", // current branch is deleted upstream
