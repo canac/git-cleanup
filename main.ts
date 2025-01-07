@@ -5,9 +5,9 @@ import {
   getRemovableBranches,
   getRemovableWorktrees,
   ignoreWorktree,
-  prompt,
   setIgnoredBranches,
 } from "./git.ts";
+import { prompt } from "./prompt.ts";
 
 // Fetch the latest upstream branches
 await $`git fetch --prune`;
