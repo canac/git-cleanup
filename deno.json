@@ -1,7 +1,7 @@
 {
   "tasks": {
     "dev": "deno run --allow-env --allow-read --allow-run=git --watch main.ts",
-    "test": "deno test --allow-env --allow-read --allow-run=git --allow-write"
+    "test": "deno test --allow-env --allow-read --allow-run --allow-write"
   },
   "imports": {
     "@david/dax": "jsr:@david/dax@^0.42",
