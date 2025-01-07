@@ -11,11 +11,12 @@ beforeEach(async () => {
   await Deno.mkdir(`${dir}/remote`);
 
   $.cd(`${dir}/remote`);
-  await $`git init`;
+  await $`git init --initial-branch main`;
   await $`git commit --allow-empty -m "Root"`;
 
   await $`git clone . ${dir}/local`;
   $.cd(`${dir}/local`);
+  await $`git config push.autoSetupRemote true`;
 
   await $`git worktree add ${dir}/cleanup-1 -b cleanup-test-1`;
   await $`git worktree add ${dir}/cleanup-2 -b cleanup-test-2`;
