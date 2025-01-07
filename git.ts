@@ -21,6 +21,8 @@ export const getRemovableWorktrees = async (
     const deletedPromise = $`git -C ${path} branch --format '%(upstream:track) %(HEAD)'`.lines()
       .then((lines) => lines.some((line) => line === "[gone] *"));
     const ignoredPromise = $`git -C ${path} config get --worktree cleanup.ignore`
+      // Suppress errors if worktreeConfig is not enabled
+      .quiet("stderr")
       .noThrow()
       .text().then((ignore) => ignore === "true");
 
