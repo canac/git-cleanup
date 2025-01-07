@@ -1,7 +1,7 @@
 import { $ } from "@david/dax";
 import { expect } from "@std/expect";
 import { beforeEach, describe, it } from "@std/testing/bdd";
-import { returnsNext, spy } from "@std/testing/mock";
+import { returnsNext, stub } from "@std/testing/mock";
 import { cleanup } from "./main.ts";
 
 beforeEach(async () => {
@@ -39,22 +39,25 @@ beforeEach(async () => {
 
 describe("cleanup E2E", () => {
   it("runs cleanup", async () => {
-    const multiSelectSpy = spy(returnsNext([
-      Promise.resolve([1]),
-      Promise.resolve([0, 1, 2, 3]),
-    ]));
-    $.multiSelect = multiSelectSpy;
+    using multiSelectStub = stub(
+      $,
+      "multiSelect",
+      returnsNext([
+        Promise.resolve([1]),
+        Promise.resolve([0, 1, 2, 3]),
+      ]),
+    );
     await cleanup($);
 
-    expect(multiSelectSpy.calls.length).toBe(2);
-    expect(multiSelectSpy.calls[0]?.args[0]).toMatchObject({
+    expect(multiSelectStub.calls.length).toBe(2);
+    expect(multiSelectStub.calls[0]?.args[0]).toMatchObject({
       message: "Which worktrees do you want to clean up?",
       options: [
         { selected: true, text: expect.stringMatching(/cleanup-1$/) },
         { selected: true, text: expect.stringMatching(/cleanup-2$/) },
       ],
     });
-    expect(multiSelectSpy.calls[1]?.args[0]).toEqual({
+    expect(multiSelectStub.calls[1]?.args[0]).toEqual({
       message: "Which branches do you want to clean up?",
       options: [
         { selected: true, text: "cleanup-test-1" },
