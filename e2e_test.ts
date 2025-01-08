@@ -31,8 +31,9 @@ beforeEach(async () => {
   await $`git push origin --delete cleanup-test-1`;
   await $`git branch cleanup-test-1-backup`;
   await $`git branch cleanup-test-1-backup2`;
-  await $`git config set cleanup.ignoredBranches cleanup-test-1-backup2`;
   await $`git branch cleanup-test-1-backup3`;
+  await $`git branch orphan-backup3`;
+  await $`git config set cleanup.ignoredBranches cleanup-test-1-backup2`;
 
   $.cd(`${dir}/cleanup-2`);
   await $`git push`;
@@ -53,7 +54,7 @@ describe("cleanup E2E", () => {
       "multiSelect",
       returnsNext([
         Promise.resolve([1]),
-        Promise.resolve([0, 1, 2, 3]),
+        Promise.resolve([0, 1, 2, 3, 5]),
       ]),
     );
     await cleanup($);
@@ -74,6 +75,7 @@ describe("cleanup E2E", () => {
         { selected: false, text: "cleanup-test-1-backup2" },
         { selected: true, text: "cleanup-test-1-backup3" },
         { selected: true, text: "cleanup-test-2" },
+        { selected: true, text: "orphan-backup3" },
       ],
     });
 
