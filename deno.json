@@ -1,4 +1,8 @@
 {
+  "name": "@canac/git-cleanup",
+  "version": "0.0.1",
+  "license": "MIT",
+  "exports": "./main.ts",
   "tasks": {
     "dev": "deno run --allow-env --allow-read --allow-run=git --watch main.ts",
     "test": "deno test --allow-env --allow-read --ignore=e2e_test.ts",
@@ -13,6 +17,16 @@
   },
   "fmt": {
     "lineWidth": 100
+  },
+  "publish": {
+    "include": [
+      "LICENSE",
+      "README.md",
+      "*.ts"
+    ],
+    "exclude": [
+      "*_test.ts"
+    ]
   },
   "compilerOptions": {
     "noUncheckedIndexedAccess": true
