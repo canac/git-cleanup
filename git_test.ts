@@ -20,6 +20,8 @@ interface ExpectedCall {
   error?: true;
 }
 
+interface Mock$Type extends $Type, Disposable {}
+
 /**
  * Create a $ instance that intercepts and optionally mocks responses to `git` commands. The
  * returned $ instance is extended to be disposable. When used with the `using` keyword, it will
@@ -29,7 +31,7 @@ interface ExpectedCall {
  * expected arguments for the call or an `ExpectedCall` object to mock the output and/or status
  * code of the call.
  */
-const mock$ = (expectedCalls: (string[] | ExpectedCall)[]): $Type & Disposable => {
+const mock$ = (expectedCalls: (string[] | ExpectedCall)[]): Mock$Type => {
   const calls: string[][] = [];
   // Clone the array and convert args arrays to ExpectedCall objects
   const remainingCalls = expectedCalls.map((call) => Array.isArray(call) ? { args: call } : call);
