@@ -1,4 +1,4 @@
-import { $Type, build$, CommandBuilder } from "@david/dax";
+import { type $Type, build$, CommandBuilder } from "@david/dax";
 import { equal } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
