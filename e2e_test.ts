@@ -1,10 +1,14 @@
 import { $ } from "@david/dax";
 import { expect } from "@std/expect";
-import { beforeEach, describe, it } from "@std/testing/bdd";
+import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 import { returnsNext, stub } from "@std/testing/mock";
 import { cleanup } from "./main.ts";
 
+let cwd: string;
+
 beforeEach(async () => {
+  cwd = Deno.cwd();
+
   $.setPrintCommand(true);
 
   const dir = await Deno.makeTempDir();
@@ -35,6 +39,11 @@ beforeEach(async () => {
   await $`git push origin --delete cleanup-test-2`;
 
   $.cd(`${dir}/local`);
+});
+
+afterEach(() => {
+  // Restore the current working directory
+  $.cd(cwd);
 });
 
 describe("cleanup E2E", () => {
