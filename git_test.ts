@@ -20,25 +20,16 @@ interface ExpectedCall {
   error?: true;
 }
 
-interface Mock$Response {
-  /** The mocked $ object */
-  $: $Type;
-
-  /**
-   * Assert that git was called with all of the expected calls. It should be called at the end of
-   * the test.
-   */
-  assertNoRemainingCalls: () => void;
-}
-
 /**
- * Create a $ object that intercepts and optionally mocks responses to `git` commands.
+ * Create a $ instance that intercepts and optionally mocks responses to `git` commands. The
+ * returned $ instance is extended to be disposable. When used with the `using` keyword, it will
+ * automatically verify that no expected calls remain at the end of the test when it is disposed.
  *
  * @param expectedCalls An array of expected calls to `git`. Each entry can be an array of the
  * expected arguments for the call or an `ExpectedCall` object to mock the output and/or status
  * code of the call.
  */
-const mock$ = (expectedCalls: (string[] | ExpectedCall)[]): Mock$Response => {
+const mock$ = (expectedCalls: (string[] | ExpectedCall)[]): $Type & Disposable => {
   const calls: string[][] = [];
   // Clone the array and convert args arrays to ExpectedCall objects
   const remainingCalls = expectedCalls.map((call) => Array.isArray(call) ? { args: call } : call);
@@ -49,7 +40,6 @@ const mock$ = (expectedCalls: (string[] | ExpectedCall)[]): Mock$Response => {
         calls.push(args);
 
         const expectedCall = remainingCalls[0];
-
         if (!expectedCall || !equal(expectedCall.args, args)) {
           throw new Error(
             `Unexpected git call
@@ -70,13 +60,14 @@ ${calls.map((call) => Deno.inspect(call)).join("\n")}`,
       },
     );
 
-  const $ = build$({ commandBuilder });
-  return {
-    $,
-    assertNoRemainingCalls: () => {
-      expect(remainingCalls).toEqual([]);
+  return build$({
+    commandBuilder,
+    extras: {
+      [Symbol.dispose]() {
+        expect(remainingCalls).toEqual([]);
+      },
     },
-  };
+  });
 };
 
 const worktreeListOutput = `worktree /dev/project
@@ -98,7 +89,7 @@ detached
 
 describe("getWorktrees", () => {
   it("returns an array of worktree paths", async () => {
-    const { $, assertNoRemainingCalls } = mock$([
+    using $ = mock$([
       { args: ["worktree", "list", "--porcelain"], output: worktreeListOutput },
     ]);
     expect(await getWorktrees($)).toEqual([
@@ -106,34 +97,31 @@ describe("getWorktrees", () => {
       "/dev/worktree-2",
       "/dev/worktree-3",
     ]);
-    assertNoRemainingCalls();
   });
 });
 
 describe("deleteWorktree", () => {
   it("deletes the worktree", async () => {
-    const { $, assertNoRemainingCalls } = mock$([
+    using $ = mock$([
       ["worktree", "remove", "/dev/worktree-1", "--force"],
     ]);
     await deleteWorktree($, "/dev/worktree-1");
-    assertNoRemainingCalls();
   });
 });
 
 describe("ignoreWorktree", () => {
   it("marks the worktree as ignored", async () => {
-    const { $, assertNoRemainingCalls } = mock$([
+    using $ = mock$([
       ["config", "set", "extensions.worktreeconfig", "true"],
       ["-C", "/dev/worktree-1", "config", "set", "--worktree", "cleanup.ignore", "true"],
     ]);
     await ignoreWorktree($, "/dev/worktree-1");
-    assertNoRemainingCalls();
   });
 });
 
 describe("getRemovableWorktrees", () => {
   it("returns an array of merged worktrees with their ignored state", async () => {
-    const { $, assertNoRemainingCalls } = mock$(
+    using $ = mock$(
       [
         { args: ["worktree", "list", "--porcelain"], output: worktreeListOutput },
         {
@@ -163,16 +151,14 @@ describe("getRemovableWorktrees", () => {
       ],
     );
 
-    expect(await getRemovableWorktrees($))
-      .toEqual([
-        { ignored: true, path: "/dev/worktree-1" },
-        { ignored: false, path: "/dev/worktree-2" },
-      ]);
-    assertNoRemainingCalls();
+    expect(await getRemovableWorktrees($)).toEqual([
+      { ignored: true, path: "/dev/worktree-1" },
+      { ignored: false, path: "/dev/worktree-2" },
+    ]);
   });
 
   it("returns an array of merged branches, backup branches of merged branches, and orphaned backup branches with their ignored state", async () => {
-    const { $, assertNoRemainingCalls } = mock$([{
+    using $ = mock$([{
       args: ["config", "get", "cleanup.ignoredBranches"],
       output: "deleted-upstream-backup orphaned-backup2",
     }, {
@@ -199,73 +185,66 @@ orphaned-backup2
       { name: "orphaned-backup", ignored: false },
       { name: "orphaned-backup2", ignored: true },
     ]);
-    assertNoRemainingCalls();
   });
 });
 
 describe("getIgnoredBranches", () => {
   it("parses the git config", async () => {
-    const { $, assertNoRemainingCalls } = mock$([
+    using $ = mock$([
       { args: ["config", "get", "cleanup.ignoredBranches"], output: "branch-1 branch-3" },
     ]);
 
     expect(await getIgnoredBranches($)).toEqual(["branch-1", "branch-3"]);
-    assertNoRemainingCalls();
   });
 
   it("handles missing config", async () => {
-    const { $, assertNoRemainingCalls } = mock$([
+    using $ = mock$([
       { args: ["config", "get", "cleanup.ignoredBranches"], error: true },
     ]);
 
     expect(await getIgnoredBranches($)).toEqual([]);
-    assertNoRemainingCalls();
   });
 
   it("handles blank", async () => {
-    const { $, assertNoRemainingCalls } = mock$([
+    using $ = mock$([
       ["config", "get", "cleanup.ignoredBranches"],
     ]);
 
     expect(await getIgnoredBranches($)).toEqual([]);
-    assertNoRemainingCalls();
   });
 });
 
 describe("setIgnoredBranches", () => {
   it("parses the git config", async () => {
-    const { $, assertNoRemainingCalls } = mock$([
+    using $ = mock$([
       ["config", "set", "cleanup.ignoredBranches", "branch-1 branch-2"],
     ]);
 
     await setIgnoredBranches($, ["branch-1", "branch-2"]);
-    assertNoRemainingCalls();
   });
 });
 
 describe("deleteBranches", () => {
   it("detaches worktrees and deletes the branches", async () => {
-    const { $, assertNoRemainingCalls } = mock$([
+    using $ = mock$([
       { args: ["worktree", "list", "--porcelain"], output: worktreeListOutput },
       ["-C", "/dev/worktree-1", "switch", "--detach"],
       ["branch", "-D", "worktree-1", "worktree-3"],
     ]);
 
     await deleteBranches($, ["worktree-1", "worktree-3"]);
-    assertNoRemainingCalls();
   });
 
   it("does nothing when there are no branches to delete", async () => {
-    const { $, assertNoRemainingCalls } = mock$([]);
+    using $ = mock$([]);
 
     await deleteBranches($, []);
-    assertNoRemainingCalls();
   });
 });
 
 describe("getBranchWorktrees", () => {
   it("returns a map of worktree paths and their branches, filtering out detached worktrees", async () => {
-    const { $, assertNoRemainingCalls } = mock$([
+    using $ = mock$([
       { args: ["worktree", "list", "--porcelain"], output: worktreeListOutput },
     ]);
 
@@ -276,6 +255,5 @@ describe("getBranchWorktrees", () => {
         ["worktree-2", "/dev/worktree-2"],
       ]),
     );
-    assertNoRemainingCalls();
   });
 });
