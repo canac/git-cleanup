@@ -25,6 +25,7 @@ beforeEach(async () => {
   await $`git worktree add ${dir}/cleanup-1 -b cleanup-test-1`;
   await $`git worktree add ${dir}/cleanup-2 -b cleanup-test-2`;
   await $`git worktree add ${dir}/cleanup-3 -b cleanup-test-3`;
+  await $`git worktree add ${dir}/cleanup-4 -b cleanup-test-4`;
 
   $.cd(`${dir}/cleanup-1`);
   await $`git push`;
@@ -38,6 +39,10 @@ beforeEach(async () => {
   $.cd(`${dir}/cleanup-2`);
   await $`git push`;
   await $`git push origin --delete cleanup-test-2`;
+
+  $.cd(`${dir}/cleanup-3`);
+  await $`git push`;
+  await $`git push origin --delete cleanup-test-3`;
 
   $.cd(`${dir}/local`);
 });
@@ -54,7 +59,9 @@ describe("cleanup E2E", () => {
       "multiSelect",
       returnsNext([
         Promise.resolve([1]),
-        Promise.resolve([0, 1, 2, 3, 5]),
+        Promise.resolve([0, 1, 2, 3, 6]), // skip cleanup-test-2 and cleanup-test-3
+        Promise.resolve([]),
+        Promise.resolve([]),
       ]),
     );
     await cleanup($);
@@ -65,6 +72,7 @@ describe("cleanup E2E", () => {
       options: [
         { selected: true, text: expect.stringMatching(/cleanup-1$/) },
         { selected: true, text: expect.stringMatching(/cleanup-2$/) },
+        { selected: true, text: expect.stringMatching(/cleanup-3$/) },
       ],
     });
     expect(multiSelectStub.calls[1]?.args[0]).toEqual({
@@ -75,12 +83,13 @@ describe("cleanup E2E", () => {
         { selected: false, text: "cleanup-test-1-backup2" },
         { selected: true, text: "cleanup-test-1-backup3" },
         { selected: true, text: "cleanup-test-2" },
+        { selected: true, text: "cleanup-test-3" },
         { selected: true, text: "orphan-backup3" },
       ],
     });
 
     expect(await $`git worktree list`.text()).toMatch(
-      /^[^ ]+local .+ \[main\]\n[^ ]+cleanup-1 .+ \(detached HEAD\)\n[^ ]+cleanup-3 .+ \[cleanup-test-3\]$/gm,
+      /^[^ ]+local .+ \[main\]\n[^ ]+cleanup-1 .+ \(detached HEAD\)\n[^ ]+cleanup-3 .+ \[cleanup-test-3\]\n[^ ]+cleanup-4 .+ \[cleanup-test-4\]$/gm,
     );
     expect(await $`git -C ../cleanup-1 config get --worktree cleanup.ignore`.text()).toEqual(
       "true",
@@ -89,9 +98,28 @@ describe("cleanup E2E", () => {
       "  cleanup-test-2",
       "* main",
       "+ cleanup-test-3",
+      "+ cleanup-test-4",
     ]);
     expect(await $`git config get cleanup.ignoredBranches`.text()).toEqual(
-      "cleanup-test-2",
+      "cleanup-test-2 cleanup-test-3",
     );
+
+    await cleanup($);
+
+    // Test that the deselected worktrees start out as deselected the next time
+    expect(multiSelectStub.calls.length).toBe(4);
+    expect(multiSelectStub.calls[2]?.args[0]).toMatchObject({
+      message: "Which worktrees do you want to clean up?",
+      options: [
+        { selected: false, text: expect.stringMatching(/cleanup-3$/) },
+      ],
+    });
+    expect(multiSelectStub.calls[3]?.args[0]).toEqual({
+      message: "Which branches do you want to clean up?",
+      options: [
+        { selected: false, text: "cleanup-test-2" },
+        { selected: false, text: "cleanup-test-3" },
+      ],
+    });
   });
 });
