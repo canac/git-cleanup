@@ -148,7 +148,8 @@ export const getBranchWorktrees = async (
       const worktree = firstNotNullishOf(lines, (line) => stripPrefix(line, "worktree "));
       // Find the branch name
       const branch = firstNotNullishOf(lines, (line) => stripPrefix(line, "branch refs/heads/"));
-      // If the worktree could not be found, return null so it will be filtered out
+      // The worktree line should always be present, but the branch line may be missing if the
+      // worktree has a detached HEAD. If this is the case, return null so it will be filtered out.
       return worktree && branch ? [branch, worktree] as const : null;
     }),
   );

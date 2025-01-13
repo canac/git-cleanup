@@ -26,6 +26,7 @@ beforeEach(async () => {
   await $`git worktree add ${dir}/cleanup-2 -b cleanup-test-2`;
   await $`git worktree add ${dir}/cleanup-3 -b cleanup-test-3`;
   await $`git worktree add ${dir}/cleanup-4 -b cleanup-test-4`;
+  await $`git worktree add ${dir}/cleanup-5 -d`;
 
   $.cd(`${dir}/cleanup-1`);
   await $`git push`;
