@@ -20,13 +20,20 @@ const getText = (option: MultiSelectOption): string => option.text;
  * Prompt the user to select some options. Return a tuple of the selected options and the unselected
  * options.
  */
-export const prompt = async (
+export const prompt = async <Option extends MultiSelectOption>(
   $: $Type,
   message: string,
-  options: MultiSelectOption[],
+  options: Option[],
+  getOptionText: (option: Option) => string = getText,
 ): Promise<PromptResult> => {
   const selectedIndexes = new Set(
-    options.length === 0 ? [] : await $.multiSelect({ message, options }),
+    options.length === 0 ? [] : await $.multiSelect({
+      message,
+      options: options.map((option) => ({
+        text: getOptionText(option),
+        selected: option.selected,
+      })),
+    }),
   );
 
   const selected = options.filter((_option, index) => selectedIndexes.has(index));
