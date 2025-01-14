@@ -5,6 +5,7 @@ import { isNotNull, stripPrefix } from "./lib.ts";
 interface RemovableWorktree {
   path: string;
   ignored: boolean;
+  dirty: boolean;
 }
 
 /**
@@ -25,10 +26,16 @@ export const getRemovableWorktrees = async (
       .quiet("stderr")
       .noThrow()
       .text().then((ignore) => ignore === "true");
+    const dirtyPromise = $`git -C ${path} status --porcelain`.text()
+      .then((changedFiles) => changedFiles.length > 0);
 
-    const [deleted, ignored] = await Promise.all([deletedPromise, ignoredPromise]);
+    const [deleted, ignored, dirty] = await Promise.all([
+      deletedPromise,
+      ignoredPromise,
+      dirtyPromise,
+    ]);
     // If the worktree's current branch wasn't deleted upstream, return null so it will be filtered out
-    return deleted ? { path, ignored } : null;
+    return deleted ? { path, ignored, dirty } : null;
   }));
 
   return removableWorktrees.filter(isNotNull);

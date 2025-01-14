@@ -1,3 +1,4 @@
+import { red } from "@std/fmt/colors";
 import $, { type $Type } from "@david/dax";
 import {
   deleteBranches,
@@ -20,7 +21,12 @@ export const cleanup = async ($: $Type): Promise<void> => {
   const { selected: selectedWorktrees, deselected: deselectedWorktrees } = await prompt(
     $,
     "Which worktrees do you want to clean up?",
-    removableWorktrees.map(({ path, ignored }) => ({ text: path, selected: !ignored })),
+    removableWorktrees.map(({ path, ignored, dirty }) => ({
+      text: path,
+      selected: !ignored,
+      dirty,
+    })),
+    ({ text, dirty }) => dirty ? `${text} ${red("(dirty)")}` : text,
   );
   await Promise.all([
     // Remove the selected worktrees

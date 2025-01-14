@@ -127,6 +127,18 @@ describe("getRemovableWorktrees", () => {
       [
         { args: ["worktree", "list", "--porcelain"], output: worktreeListOutput },
         {
+          args: ["-C", "/dev/worktree-1", "status", "--porcelain"],
+          output: " M file.txt",
+        },
+        {
+          args: ["-C", "/dev/worktree-2", "status", "--porcelain"],
+          output: "",
+        },
+        {
+          args: ["-C", "/dev/worktree-3", "status", "--porcelain"],
+          output: "",
+        },
+        {
           args: ["-C", "/dev/worktree-1", "branch", "--format", "%(upstream:track) %(HEAD)"],
           output: "[gone] *", // current branch is deleted upstream
         },
@@ -154,8 +166,8 @@ describe("getRemovableWorktrees", () => {
     );
 
     expect(await getRemovableWorktrees($)).toEqual([
-      { ignored: true, path: "/dev/worktree-1" },
-      { ignored: false, path: "/dev/worktree-2" },
+      { ignored: true, path: "/dev/worktree-1", dirty: true },
+      { ignored: false, path: "/dev/worktree-2", dirty: false },
     ]);
   });
 

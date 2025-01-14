@@ -30,6 +30,7 @@ beforeEach(async () => {
 
   $.cd(`${dir}/cleanup-1`);
   await $`git push`;
+  await Deno.writeFile("file.txt", new Uint8Array());
   await $`git push origin --delete cleanup-test-1`;
   await $`git branch cleanup-test-1-backup`;
   await $`git branch cleanup-test-1-backup2`;
@@ -71,7 +72,7 @@ describe("cleanup E2E", () => {
     expect(multiSelectStub.calls[0]?.args[0]).toMatchObject({
       message: "Which worktrees do you want to clean up?",
       options: [
-        { selected: true, text: expect.stringMatching(/cleanup-1$/) },
+        { selected: true, text: expect.stringMatching(/cleanup-1 .+\(dirty\).+$/) },
         { selected: true, text: expect.stringMatching(/cleanup-2$/) },
         { selected: true, text: expect.stringMatching(/cleanup-3$/) },
       ],
