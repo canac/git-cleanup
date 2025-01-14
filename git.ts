@@ -29,13 +29,13 @@ export const getRemovableWorktrees = async (
     const dirtyPromise = $`git -C ${path} status --porcelain`.text()
       .then((changedFiles) => changedFiles.length > 0);
 
-    const [deleted, ignored, dirty] = await Promise.all([
-      deletedPromise,
-      ignoredPromise,
-      dirtyPromise,
-    ]);
-    // If the worktree's current branch wasn't deleted upstream, return null so it will be filtered out
-    return deleted ? { path, ignored, dirty } : null;
+    if (!await deletedPromise) {
+      // If the worktree's current branch wasn't deleted upstream, return null so it will be filtered out
+      return null;
+    }
+
+    const [ignored, dirty] = await Promise.all([ignoredPromise, dirtyPromise]);
+    return { path, ignored, dirty };
   }));
 
   return removableWorktrees.filter(isNotNull);
