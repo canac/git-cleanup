@@ -126,18 +126,9 @@ describe("getRemovableWorktrees", () => {
     using $ = mock$(
       [
         { args: ["worktree", "list", "--porcelain"], output: worktreeListOutput },
-        {
-          args: ["-C", "/dev/worktree-1", "status", "--porcelain"],
-          output: " M file.txt",
-        },
-        {
-          args: ["-C", "/dev/worktree-2", "status", "--porcelain"],
-          output: "",
-        },
-        {
-          args: ["-C", "/dev/worktree-3", "status", "--porcelain"],
-          output: "",
-        },
+        { args: ["-C", "/dev/worktree-1", "status", "--porcelain"], output: " M file.txt" },
+        { args: ["-C", "/dev/worktree-2", "status", "--porcelain"], output: "" },
+        { args: ["-C", "/dev/worktree-3", "status", "--porcelain"], output: "" },
         {
           args: ["-C", "/dev/worktree-1", "branch", "--format", "%(upstream:track) %(HEAD)"],
           output: "[gone] *", // current branch is deleted upstream
