@@ -5,7 +5,7 @@
   "exports": "./main.ts",
   "tasks": {
     "dev": "deno run --allow-env --allow-read --allow-run=git --watch main.ts",
-    "test": "deno test --allow-env --allow-read --ignore=e2e_test.ts",
+    "test": "deno test --allow-read --ignore=e2e_test.ts",
     "test-coverage": "deno task test --coverage --clean",
     "test-e2e": "deno test --allow-env --allow-read --allow-run --allow-write e2e_test.ts",
     "test-e2e-coverage": "deno task test-e2e --coverage --clean"

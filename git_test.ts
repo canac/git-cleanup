@@ -36,6 +36,7 @@ const mock$ = (expectedCalls: (string[] | ExpectedCall)[]): Mock$Type => {
   // Clone the array and convert args arrays to ExpectedCall objects
   const remainingCalls = expectedCalls.map((call) => Array.isArray(call) ? { args: call } : call);
   const commandBuilder = new CommandBuilder()
+    .clearEnv()
     .registerCommand(
       "git",
       ({ args, stdout }) => {

@@ -1,8 +1,10 @@
-import { build$, type MultiSelectOption } from "@david/dax";
+import { build$, CommandBuilder, type MultiSelectOption } from "@david/dax";
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { returnsNext, stub } from "@std/testing/mock";
 import { prompt } from "./prompt.ts";
+
+const make$ = () => build$({ commandBuilder: new CommandBuilder().clearEnv() });
 
 describe("prompt", () => {
   it("returns selected, unselected, and deselected options", async () => {
@@ -13,7 +15,7 @@ describe("prompt", () => {
       { text: "Option 4", selected: false },
     ];
 
-    const $ = build$();
+    const $ = make$();
     $.multiSelect = () => Promise.resolve([0, 3]);
 
     expect(await prompt($, "Select options", options)).toEqual({
@@ -24,7 +26,7 @@ describe("prompt", () => {
   });
 
   it("returns empty arrays when no options are provided", async () => {
-    const $ = build$();
+    const $ = make$();
     $.multiSelect = () => {
       throw new Error("Unexpected call to multiSelect");
     };
@@ -43,7 +45,7 @@ describe("prompt", () => {
       { text: "Option 3", selected: false },
     ];
 
-    const $ = build$();
+    const $ = make$();
     const multiSelectStub = stub(
       $,
       "multiSelect",
