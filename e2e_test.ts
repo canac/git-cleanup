@@ -14,12 +14,12 @@ beforeEach(async () => {
   const dir = await Deno.makeTempDir();
   await Deno.mkdir(`${dir}/remote`);
 
-  $.cd(`${dir}/remote`);
+  Deno.chdir(`${dir}/remote`);
   await $`git init --initial-branch main`;
   await $`git commit --allow-empty -m "Root"`;
 
   await $`git clone . ${dir}/local`;
-  $.cd(`${dir}/local`);
+  Deno.chdir(`${dir}/local`);
   await $`git config push.autoSetupRemote true`;
 
   await $`git worktree add ${dir}/cleanup-1 -b cleanup-test-1`;
@@ -28,7 +28,7 @@ beforeEach(async () => {
   await $`git worktree add ${dir}/cleanup-4 -b cleanup-test-4`;
   await $`git worktree add ${dir}/cleanup-5 -d`;
 
-  $.cd(`${dir}/cleanup-1`);
+  Deno.chdir(`${dir}/cleanup-1`);
   await $`git push`;
   await Deno.writeFile("file.txt", new Uint8Array());
   await $`git push origin --delete cleanup-test-1`;
@@ -38,20 +38,20 @@ beforeEach(async () => {
   await $`git branch orphan-backup3`;
   await $`git config set cleanup.ignoredBranches cleanup-test-1-backup2`;
 
-  $.cd(`${dir}/cleanup-2`);
+  Deno.chdir(`${dir}/cleanup-2`);
   await $`git push`;
   await $`git push origin --delete cleanup-test-2`;
 
-  $.cd(`${dir}/cleanup-3`);
+  Deno.chdir(`${dir}/cleanup-3`);
   await $`git push`;
   await $`git push origin --delete cleanup-test-3`;
 
-  $.cd(`${dir}/local`);
+  Deno.chdir(`${dir}/local`);
 });
 
 afterEach(() => {
   // Restore the current working directory
-  $.cd(cwd);
+  Deno.chdir(cwd);
 });
 
 describe("cleanup E2E", () => {
