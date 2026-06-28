@@ -5,10 +5,18 @@
   "exports": "./main.ts",
   "tasks": {
     "dev": "deno run --allow-env --allow-read --allow-run=git --watch main.ts",
-    "test": "deno test --allow-read --ignore=e2e_test.ts",
+    "test": "deno test --permission-set",
     "test-coverage": "deno task test --coverage --clean",
-    "test-e2e": "deno test --allow-env --allow-read --allow-run --allow-write e2e_test.ts",
+    "test-e2e": "deno test --permission-set=e2e e2e/e2e_test.ts",
     "test-e2e-coverage": "deno task test-e2e --coverage --clean"
+  },
+  "permissions": {
+    "e2e": {
+      "env": true,
+      "read": true,
+      "run": ["git"],
+      "write": true
+    }
   },
   "imports": {
     "@david/dax": "jsr:@david/dax@^0.43",
@@ -31,6 +39,12 @@
     "exclude": [
       "*_test.ts"
     ]
+  },
+  "test": {
+    "include": ["*_test.ts"],
+    "permissions": {
+      "read": true
+    }
   },
   "compilerOptions": {
     "noUncheckedIndexedAccess": true

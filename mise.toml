@@ -1,0 +1,5 @@
+[tools]
+lefthook = { version = "2", task = "setup" }
+
+[tasks]
+setup = "lefthook install"

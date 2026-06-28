@@ -2,7 +2,7 @@ import { $ } from "@david/dax";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 import { returnsNext, stub } from "@std/testing/mock";
-import { cleanup } from "./main.ts";
+import { cleanup } from "../main.ts";
 
 let cwd: string;
 
