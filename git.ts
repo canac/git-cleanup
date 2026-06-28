@@ -60,10 +60,17 @@ export const deleteWorktree = async ($: $Type, path: string): Promise<void> => {
 };
 
 /**
- * Mark a worktree as ignored.
+ * Mark worktrees as ignored.
  */
-export const ignoreWorktree = async ($: $Type, path: string): Promise<void> => {
-  await $`git config set extensions.worktreeconfig true && git -C ${path} config set --worktree cleanup.ignore true`;
+export const ignoreWorktrees = async ($: $Type, paths: string[]): Promise<void> => {
+  if (paths.length === 0) {
+    return;
+  }
+
+  await $`git config set extensions.worktreeconfig true`;
+  await Promise.all(
+    paths.map((path) => $`git -C ${path} config set --worktree cleanup.ignore true`),
+  );
 };
 
 interface RemovableBranch {

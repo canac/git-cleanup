@@ -5,7 +5,7 @@ import {
   deleteWorktree,
   getRemovableBranches,
   getRemovableWorktrees,
-  ignoreWorktree,
+  ignoreWorktrees,
   setIgnoredBranches,
 } from "./git.ts";
 import { prompt } from "./prompt.ts";
@@ -32,7 +32,7 @@ export const cleanup = async ($: $Type): Promise<void> => {
     // Remove the selected worktrees
     ...selectedWorktrees.map((path) => deleteWorktree($, path)),
     // Ignore any worktrees manually deselected so that they will start out unselected next time
-    ...deselectedWorktrees.map((path) => ignoreWorktree($, path)),
+    ignoreWorktrees($, deselectedWorktrees),
   ]);
 
   const removableBranches = await getRemovableBranches($);

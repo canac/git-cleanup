@@ -10,7 +10,7 @@ import {
   getRemovableBranches,
   getRemovableWorktrees,
   getWorktrees,
-  ignoreWorktree,
+  ignoreWorktrees,
   setIgnoredBranches,
 } from "./git.ts";
 
@@ -112,13 +112,19 @@ describe("deleteWorktree", () => {
   });
 });
 
-describe("ignoreWorktree", () => {
-  it("marks the worktree as ignored", async () => {
+describe("ignoreWorktrees", () => {
+  it("marks the worktrees as ignored", async () => {
     using $ = mock$([
       ["config", "set", "extensions.worktreeconfig", "true"],
       ["-C", "/dev/worktree-1", "config", "set", "--worktree", "cleanup.ignore", "true"],
+      ["-C", "/dev/worktree-2", "config", "set", "--worktree", "cleanup.ignore", "true"],
     ]);
-    await ignoreWorktree($, "/dev/worktree-1");
+    await ignoreWorktrees($, ["/dev/worktree-1", "/dev/worktree-2"]);
+  });
+
+  it("does nothing when there are no worktrees to remove", async () => {
+    using $ = mock$([]);
+    await ignoreWorktrees($, []);
   });
 });
 
