@@ -2,9 +2,10 @@ import { type $Type, build$, CommandBuilder } from "@david/dax";
 import { equal } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import {
   deleteBranches,
-  deleteWorktree,
+  deleteWorktrees,
   getBranchWorktrees,
   getIgnoredBranches,
   getRemovableBranches,
@@ -103,12 +104,25 @@ describe("getWorktrees", () => {
   });
 });
 
-describe("deleteWorktree", () => {
-  it("deletes the worktree", async () => {
+describe("deleteWorktrees", () => {
+  it("changes to the main worktree and deletes the worktrees", async () => {
     using $ = mock$([
+      {
+        args: ["rev-parse", "--path-format=absolute", "--git-common-dir"],
+        output: "/dev/main/.git",
+      },
       ["worktree", "remove", "/dev/worktree-1", "--force"],
+      ["worktree", "remove", "/dev/worktree-2", "--force"],
     ]);
-    await deleteWorktree($, "/dev/worktree-1");
+    using chdir = stub(Deno, "chdir");
+    await deleteWorktrees($, ["/dev/worktree-1", "/dev/worktree-2"]);
+
+    expect(chdir.calls.map((call) => call.args)).toEqual([["/dev/main"]]);
+  });
+
+  it("does nothing when there are no worktrees to delete", async () => {
+    using $ = mock$([]);
+    await deleteWorktrees($, []);
   });
 });
 

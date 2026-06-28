@@ -46,7 +46,8 @@ beforeEach(async () => {
   await $`git push`;
   await $`git push origin --delete cleanup-test-3`;
 
-  Deno.chdir(`${dir}/local`);
+  // Start in a worktree that will be deleted
+  Deno.chdir(`${dir}/cleanup-2`);
 });
 
 afterEach(() => {
@@ -60,7 +61,7 @@ describe("cleanup E2E", () => {
       $,
       "multiSelect",
       returnsNext([
-        Promise.resolve([1]),
+        Promise.resolve([1]), // remove cleanup-2
         Promise.resolve([0, 1, 2, 3, 6]), // skip cleanup-test-2 and cleanup-test-3
         Promise.resolve([]),
         Promise.resolve([]),

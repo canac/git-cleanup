@@ -1,5 +1,6 @@
 import type { $Type } from "@david/dax";
 import { firstNotNullishOf, mapNotNullish } from "@std/collections";
+import { join } from "@std/path";
 import { isNotNull, stripPrefix } from "./lib.ts";
 
 interface RemovableWorktree {
@@ -48,15 +49,29 @@ export const getWorktrees = async ($: $Type): Promise<string[]> => {
   // List the worktrees in the current directory
   const lines = await $`git worktree list --porcelain`.lines();
   return mapNotNullish(lines, (line) => stripPrefix(line, "worktree "))
-    // Ignore the primary worktree
+    // Ignore the main worktree
     .slice(1);
 };
 
 /**
- * Delete a worktree.
+ * Delete worktrees.
  */
-export const deleteWorktree = async ($: $Type, path: string): Promise<void> => {
-  await $`git worktree remove ${path} --force`.printCommand();
+export const deleteWorktrees = async ($: $Type, paths: string[]): Promise<void> => {
+  if (paths.length === 0) {
+    return;
+  }
+
+  // Move to the main worktree in case the current directory is a deleted worktree. This is safe
+  // because the main worktree is never a cleanup option.
+  const mainWorktree = join(
+    await $`git rev-parse --path-format=absolute --git-common-dir`.text(),
+    "..",
+  );
+  Deno.chdir(mainWorktree);
+
+  await Promise.all(
+    paths.map((path) => $`git worktree remove ${path} --force`.printCommand()),
+  );
 };
 
 /**

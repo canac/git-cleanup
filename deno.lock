@@ -109,6 +109,7 @@
       "jsr:@std/collections@1",
       "jsr:@std/expect@1",
       "jsr:@std/fmt@1",
+      "jsr:@std/path@1",
       "jsr:@std/testing@1"
     ]
   }
