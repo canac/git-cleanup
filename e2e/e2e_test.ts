@@ -5,6 +5,10 @@ import { returnsNext, stub } from "@std/testing/mock";
 import { cleanup } from "../main.ts";
 
 let cwd: string;
+// The temp root and the local main worktree, captured so post-run assertions can target the repo
+// with `-C`: cleanup moves the working directory to a surviving main worktree before deleting worktrees.
+let root: string;
+let local: string;
 
 beforeEach(async () => {
   cwd = Deno.cwd();
@@ -12,6 +16,8 @@ beforeEach(async () => {
   $.setPrintCommand(true);
 
   const dir = await Deno.makeTempDir();
+  root = dir;
+  local = `${dir}/local`;
   await Deno.mkdir(`${dir}/remote`);
 
   Deno.chdir(`${dir}/remote`);
@@ -67,7 +73,7 @@ describe("cleanup E2E", () => {
         Promise.resolve([]),
       ]),
     );
-    await cleanup($);
+    await cleanup($, ["."]);
 
     expect(multiSelectStub.calls.length).toBe(2);
     expect(multiSelectStub.calls[0]?.args[0]).toMatchObject({
@@ -91,23 +97,23 @@ describe("cleanup E2E", () => {
       ],
     });
 
-    expect(await $`git worktree list`.text()).toMatch(
+    expect(await $`git -C ${local} worktree list`.text()).toMatch(
       /^[^ ]+local .+ \[main\]\n[^ ]+cleanup-1 .+ \(detached HEAD\)\n[^ ]+cleanup-3 .+ \[cleanup-test-3\]\n[^ ]+cleanup-4 .+ \[cleanup-test-4\]$/gm,
     );
-    expect(await $`git -C ../cleanup-1 config get --worktree cleanup.ignore`.text()).toEqual(
+    expect(await $`git -C ${root}/cleanup-1 config get --worktree cleanup.ignore`.text()).toEqual(
       "true",
     );
-    expect((await $`git branch`.lines()).toSorted()).toEqual([
+    expect((await $`git -C ${local} branch`.lines()).toSorted()).toEqual([
       "  cleanup-test-2",
       "* main",
       "+ cleanup-test-3",
       "+ cleanup-test-4",
     ]);
-    expect(await $`git config get cleanup.ignoredBranches`.text()).toEqual(
+    expect(await $`git -C ${local} config get cleanup.ignoredBranches`.text()).toEqual(
       "cleanup-test-2 cleanup-test-3",
     );
 
-    await cleanup($);
+    await cleanup($, [local]);
 
     // Test that the deselected worktrees start out as deselected the next time
     expect(multiSelectStub.calls.length).toBe(4);
@@ -124,5 +130,112 @@ describe("cleanup E2E", () => {
         { selected: false, text: "cleanup-test-3" },
       ],
     });
+  });
+});
+
+/**
+ * Create a repo named `name` with a single removable branch (`feature`, whose upstream has been
+ * deleted) and return the path of its main worktree. The directory basename is `name` so combined
+ * branch prompts can tell repos apart.
+ */
+const setupRepo = async (name: string): Promise<string> => {
+  const dir = await Deno.makeTempDir();
+  const remote = `${dir}/remote`;
+  const local = `${dir}/${name}`;
+
+  await Deno.mkdir(remote);
+  await $`git -C ${remote} init --initial-branch main`;
+  await $`git -C ${remote} commit --allow-empty -m Root`;
+
+  await $`git clone ${remote} ${local}`;
+  await $`git -C ${local} config push.autoSetupRemote true`;
+  await $`git -C ${local} switch -c feature`;
+  await $`git -C ${local} push`;
+  await $`git -C ${local} push origin --delete feature`;
+  await $`git -C ${local} switch main`;
+
+  return local;
+};
+
+/**
+ * Create a repo named `name` with a worktree checked out on a branch (`feat`) whose upstream has
+ * been deleted, making the worktree removable. Return the main worktree and the worktree paths.
+ */
+const setupRepoWithWorktree = async (
+  name: string,
+): Promise<{ repo: string; worktree: string }> => {
+  const dir = await Deno.makeTempDir();
+  const remote = `${dir}/remote`;
+  const repo = `${dir}/${name}`;
+  const worktree = `${dir}/${name}-wt`;
+
+  await Deno.mkdir(remote);
+  await $`git -C ${remote} init --initial-branch main`;
+  await $`git -C ${remote} commit --allow-empty -m Root`;
+
+  await $`git clone ${remote} ${repo}`;
+  await $`git -C ${repo} config push.autoSetupRemote true`;
+  await $`git -C ${repo} worktree add ${worktree} -b feat`;
+  await $`git -C ${worktree} push`;
+  await $`git -C ${repo} push origin --delete feat`;
+
+  return { repo, worktree };
+};
+
+describe("cleanup multi-repo E2E", () => {
+  it("prompts once for all branches across repos and ignores non-repo directories", async () => {
+    const [repoA, repoB, notARepo] = await Promise.all([
+      setupRepo("project-a"),
+      setupRepo("project-b"),
+      Deno.makeTempDir(),
+    ]);
+
+    using multiSelectStub = stub(
+      $,
+      "multiSelect",
+      returnsNext([
+        Promise.resolve([0, 1]), // remove both repos' feature branches
+      ]),
+    );
+
+    await cleanup($, [repoA, repoB, notARepo]);
+
+    expect(multiSelectStub.calls.map((call) => call.args)).toEqual([[{
+      message: "Which branches do you want to clean up?",
+      options: [
+        { selected: true, text: "project-a: feature" },
+        { selected: true, text: "project-b: feature" },
+      ],
+    }]]);
+    expect((await $`git -C ${repoA} branch`.lines()).toSorted()).toEqual(["* main"]);
+    expect((await $`git -C ${repoB} branch`.lines()).toSorted()).toEqual(["* main"]);
+  });
+
+  it("prompts once for all removable worktrees across repos", async () => {
+    const [a, b] = await Promise.all([
+      setupRepoWithWorktree("project-a"),
+      setupRepoWithWorktree("project-b"),
+    ]);
+
+    using multiSelectStub = stub(
+      $,
+      "multiSelect",
+      returnsNext([
+        Promise.resolve([0, 1]), // remove both repos' worktrees
+        Promise.resolve([]), // keep both repos' feature branches
+      ]),
+    );
+
+    await cleanup($, [a.repo, b.repo]);
+
+    expect(multiSelectStub.calls[0]?.args[0]).toMatchObject({
+      message: "Which worktrees do you want to clean up?",
+      options: [
+        { selected: true, text: expect.stringMatching(/project-a-wt$/) },
+        { selected: true, text: expect.stringMatching(/project-b-wt$/) },
+      ],
+    });
+    expect(await $`git -C ${a.repo} worktree list`.text()).toMatch(/^[^ ]+project-a .+\[main\]$/gm);
+    expect(await $`git -C ${b.repo} worktree list`.text()).toMatch(/^[^ ]+project-b .+\[main\]$/gm);
   });
 });

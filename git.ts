@@ -1,6 +1,5 @@
 import type { $Type } from "@david/dax";
 import { firstNotNullishOf, mapNotNullish } from "@std/collections";
-import { join } from "@std/path";
 import { isNotNull, stripPrefix } from "./lib.ts";
 
 interface RemovableWorktree {
@@ -16,8 +15,8 @@ interface RemovableWorktree {
  */
 export const getRemovableWorktrees = async (
   $: $Type,
+  worktrees: string[],
 ): Promise<RemovableWorktree[]> => {
-  const worktrees = await getWorktrees($);
   const removableWorktrees = await Promise.all(worktrees.map(async (path) => {
     // If the worktree's current branch is deleted upstream, its entry will be [gone] *
     const deletedPromise = $`git -C ${path} branch --format '%(upstream:track) %(HEAD)'`.lines()
@@ -43,46 +42,41 @@ export const getRemovableWorktrees = async (
 };
 
 /**
- * Return an array of the paths of the current directory's worktrees.
+ * List a repo's worktrees: its main worktree and any linked worktrees, or null if `dir` isn't a git
+ * repo.
  */
-export const getWorktrees = async ($: $Type): Promise<string[]> => {
-  // List the worktrees in the current directory
-  const lines = await $`git worktree list --porcelain`.lines();
-  return mapNotNullish(lines, (line) => stripPrefix(line, "worktree "))
-    // Ignore the main worktree
-    .slice(1);
+export const getWorktrees = async (
+  $: $Type,
+  dir: string,
+): Promise<{ main: string; worktrees: string[] } | null> => {
+  const lines = await $`git -C ${dir} worktree list --porcelain`.quiet("stderr").noThrow().lines();
+  // The first entry is always the main worktree
+  const [main, ...worktrees] = mapNotNullish(lines, (line) => stripPrefix(line, "worktree "));
+  return main === undefined ? null : { main, worktrees };
 };
 
 /**
  * Delete worktrees.
  */
-export const deleteWorktrees = async ($: $Type, paths: string[]): Promise<void> => {
+export const deleteWorktrees = async ($: $Type, dir: string, paths: string[]): Promise<void> => {
   if (paths.length === 0) {
     return;
   }
 
-  // Move to the main worktree in case the current directory is a deleted worktree. This is safe
-  // because the main worktree is never a cleanup option.
-  const mainWorktree = join(
-    await $`git rev-parse --path-format=absolute --git-common-dir`.text(),
-    "..",
-  );
-  Deno.chdir(mainWorktree);
-
   await Promise.all(
-    paths.map((path) => $`git worktree remove ${path} --force`.printCommand()),
+    paths.map((path) => $`git -C ${dir} worktree remove ${path} --force`.printCommand()),
   );
 };
 
 /**
  * Mark worktrees as ignored.
  */
-export const ignoreWorktrees = async ($: $Type, paths: string[]): Promise<void> => {
+export const ignoreWorktrees = async ($: $Type, dir: string, paths: string[]): Promise<void> => {
   if (paths.length === 0) {
     return;
   }
 
-  await $`git config set extensions.worktreeconfig true`;
+  await $`git -C ${dir} config set extensions.worktreeconfig true`;
   await Promise.all(
     paths.map((path) => $`git -C ${path} config set --worktree cleanup.ignore true`),
   );
@@ -98,10 +92,10 @@ interface RemovableBranch {
  * are ones that are merged upstream, are backup branches of branches that are merged upstream, or
  * are orphaned backup branches.
  */
-export const getRemovableBranches = async ($: $Type): Promise<RemovableBranch[]> => {
+export const getRemovableBranches = async ($: $Type, dir: string): Promise<RemovableBranch[]> => {
   const [branchLines, ignoredBranches] = await Promise.all([
-    $`git branch --format '%(refname:short)%(upstream:track)'`.lines(),
-    getIgnoredBranches($).then((branches) => new Set(branches)),
+    $`git -C ${dir} branch --format '%(refname:short)%(upstream:track)'`.lines(),
+    getIgnoredBranches($, dir).then((branches) => new Set(branches)),
   ]);
 
   const branches = branchLines
@@ -131,35 +125,39 @@ export const getRemovableBranches = async ($: $Type): Promise<RemovableBranch[]>
 /**
  * Return a list of the branches that were ignored in a previous run.
  */
-export const getIgnoredBranches = async ($: $Type): Promise<string[]> => {
-  const branches = await $`git config get cleanup.ignoredBranches`.noThrow().text();
+export const getIgnoredBranches = async ($: $Type, dir: string): Promise<string[]> => {
+  const branches = await $`git -C ${dir} config get cleanup.ignoredBranches`.noThrow().text();
   return branches.length > 0 ? branches.split(" ") : [];
 };
 
 /**
  * Save the list of branches that should be ignored in future runs.
  */
-export const setIgnoredBranches = async ($: $Type, branches: string[]): Promise<void> => {
-  await $`git config set cleanup.ignoredBranches ${branches.join(" ")}`;
+export const setIgnoredBranches = async (
+  $: $Type,
+  dir: string,
+  branches: string[],
+): Promise<void> => {
+  await $`git -C ${dir} config set cleanup.ignoredBranches ${branches.join(" ")}`;
 };
 
 /**
  * Delete a list of branches.
  */
-export const deleteBranches = async ($: $Type, branches: string[]): Promise<void> => {
+export const deleteBranches = async ($: $Type, dir: string, branches: string[]): Promise<void> => {
   if (branches.length === 0) {
     return;
   }
 
   // Detach any worktree using a branch being deleted
-  const branchWorktrees = await getBranchWorktrees($);
+  const branchWorktrees = await getBranchWorktrees($, dir);
   const detaching = mapNotNullish(branches, (branch) => branchWorktrees.get(branch));
   await Promise.all(
     detaching.map((worktree) => $`git -C ${worktree} switch --detach`.printCommand()),
   );
 
   // Delete all branches at once
-  await $`git branch -D ${branches}`.printCommand();
+  await $`git -C ${dir} branch -D ${branches}`.printCommand();
 };
 
 /**
@@ -167,8 +165,9 @@ export const deleteBranches = async ($: $Type, branches: string[]): Promise<void
  */
 export const getBranchWorktrees = async (
   $: $Type,
+  dir: string,
 ): Promise<Map<string, string>> => {
-  const sections = (await $`git worktree list --porcelain`.text()).split("\n\n");
+  const sections = (await $`git -C ${dir} worktree list --porcelain`.text()).split("\n\n");
 
   return new Map(
     mapNotNullish(sections, (section) => {

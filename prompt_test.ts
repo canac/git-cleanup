@@ -19,9 +19,9 @@ describe("prompt", () => {
     $.multiSelect = () => Promise.resolve([0, 3]);
 
     expect(await prompt($, "Select options", options)).toEqual({
-      selected: ["Option 1", "Option 4"],
-      unselected: ["Option 2", "Option 3"],
-      deselected: ["Option 2"],
+      selected: [options[0], options[3]],
+      unselected: [options[1], options[2]],
+      deselected: [options[1]],
     });
   });
 
@@ -54,8 +54,8 @@ describe("prompt", () => {
 
     expect(await prompt($, "Select options", options, (option) => option.text.toUpperCase()))
       .toEqual({
-        selected: ["Option 1", "Option 3"],
-        unselected: ["Option 2"],
+        selected: [options[0], options[2]],
+        unselected: [options[1]],
         deselected: [],
       });
 

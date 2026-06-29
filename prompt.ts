@@ -1,14 +1,14 @@
 import type { $Type, MultiSelectOption } from "@david/dax";
 
-interface PromptResult {
+interface PromptResult<Option extends MultiSelectOption> {
   /** Options that were selected */
-  selected: string[];
+  selected: Option[];
 
   /** Options that were not selected */
-  unselected: string[];
+  unselected: Option[];
 
   /** Options that started out selected but were deselected by the user */
-  deselected: string[];
+  deselected: Option[];
 }
 
 /**
@@ -17,15 +17,14 @@ interface PromptResult {
 const getText = (option: MultiSelectOption): string => option.text;
 
 /**
- * Prompt the user to select some options. Return a tuple of the selected options and the unselected
- * options.
+ * Prompt the user to select some options. Return the selected, unselected, and deselected options.
  */
 export const prompt = async <Option extends MultiSelectOption>(
   $: $Type,
   message: string,
   options: Option[],
   getOptionText: (option: Option) => string = getText,
-): Promise<PromptResult> => {
+): Promise<PromptResult<Option>> => {
   const selectedIndexes = new Set(
     options.length === 0 ? [] : await $.multiSelect({
       message,
@@ -36,15 +35,11 @@ export const prompt = async <Option extends MultiSelectOption>(
     }),
   );
 
-  const selected = options.filter((_option, index) => selectedIndexes.has(index));
-  const unselected = options.filter((_option, index) => !selectedIndexes.has(index));
-  const deselected = options.filter((option, index) =>
-    !selectedIndexes.has(index) && option.selected === true
-  );
-
   return {
-    selected: selected.map((option) => getText(option)),
-    unselected: unselected.map((option) => getText(option)),
-    deselected: deselected.map((option) => getText(option)),
+    selected: options.filter((_option, index) => selectedIndexes.has(index)),
+    unselected: options.filter((_option, index) => !selectedIndexes.has(index)),
+    deselected: options.filter((option, index) =>
+      !selectedIndexes.has(index) && option.selected === true
+    ),
   };
 };

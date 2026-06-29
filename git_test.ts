@@ -2,7 +2,6 @@ import { type $Type, build$, CommandBuilder } from "@david/dax";
 import { equal } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import {
   deleteBranches,
   deleteWorktrees,
@@ -91,54 +90,55 @@ HEAD 3333333333333333333333333333333333333333
 detached
 `;
 
+const dir = "/dev/project";
+
 describe("getWorktrees", () => {
-  it("returns an array of worktree paths", async () => {
+  it("returns the main worktree and the linked worktrees", async () => {
     using $ = mock$([
-      { args: ["worktree", "list", "--porcelain"], output: worktreeListOutput },
+      { args: ["-C", dir, "worktree", "list", "--porcelain"], output: worktreeListOutput },
     ]);
-    expect(await getWorktrees($)).toEqual([
-      "/dev/worktree-1",
-      "/dev/worktree-2",
-      "/dev/worktree-3",
+    expect(await getWorktrees($, dir)).toEqual({
+      main: "/dev/project",
+      worktrees: ["/dev/worktree-1", "/dev/worktree-2", "/dev/worktree-3"],
+    });
+  });
+
+  it("returns null when the directory is not a git repo", async () => {
+    using $ = mock$([
+      { args: ["-C", dir, "worktree", "list", "--porcelain"], error: true },
     ]);
+    expect(await getWorktrees($, dir)).toBeNull();
   });
 });
 
 describe("deleteWorktrees", () => {
-  it("changes to the main worktree and deletes the worktrees", async () => {
+  it("deletes the worktrees", async () => {
     using $ = mock$([
-      {
-        args: ["rev-parse", "--path-format=absolute", "--git-common-dir"],
-        output: "/dev/main/.git",
-      },
-      ["worktree", "remove", "/dev/worktree-1", "--force"],
-      ["worktree", "remove", "/dev/worktree-2", "--force"],
+      ["-C", "/dev/main", "worktree", "remove", "/dev/worktree-1", "--force"],
+      ["-C", "/dev/main", "worktree", "remove", "/dev/worktree-2", "--force"],
     ]);
-    using chdir = stub(Deno, "chdir");
-    await deleteWorktrees($, ["/dev/worktree-1", "/dev/worktree-2"]);
-
-    expect(chdir.calls.map((call) => call.args)).toEqual([["/dev/main"]]);
+    await deleteWorktrees($, "/dev/main", ["/dev/worktree-1", "/dev/worktree-2"]);
   });
 
   it("does nothing when there are no worktrees to delete", async () => {
     using $ = mock$([]);
-    await deleteWorktrees($, []);
+    await deleteWorktrees($, "/dev/main", []);
   });
 });
 
 describe("ignoreWorktrees", () => {
   it("marks the worktrees as ignored", async () => {
     using $ = mock$([
-      ["config", "set", "extensions.worktreeconfig", "true"],
+      ["-C", dir, "config", "set", "extensions.worktreeconfig", "true"],
       ["-C", "/dev/worktree-1", "config", "set", "--worktree", "cleanup.ignore", "true"],
       ["-C", "/dev/worktree-2", "config", "set", "--worktree", "cleanup.ignore", "true"],
     ]);
-    await ignoreWorktrees($, ["/dev/worktree-1", "/dev/worktree-2"]);
+    await ignoreWorktrees($, dir, ["/dev/worktree-1", "/dev/worktree-2"]);
   });
 
   it("does nothing when there are no worktrees to remove", async () => {
     using $ = mock$([]);
-    await ignoreWorktrees($, []);
+    await ignoreWorktrees($, dir, []);
   });
 });
 
@@ -146,7 +146,6 @@ describe("getRemovableWorktrees", () => {
   it("returns an array of merged worktrees with their ignored state", async () => {
     using $ = mock$(
       [
-        { args: ["worktree", "list", "--porcelain"], output: worktreeListOutput },
         { args: ["-C", "/dev/worktree-1", "status", "--porcelain"], output: " M file.txt" },
         { args: ["-C", "/dev/worktree-2", "status", "--porcelain"], output: "" },
         { args: ["-C", "/dev/worktree-3", "status", "--porcelain"], output: "" },
@@ -177,18 +176,21 @@ describe("getRemovableWorktrees", () => {
       ],
     );
 
-    expect(await getRemovableWorktrees($)).toEqual([
-      { ignored: true, path: "/dev/worktree-1", dirty: true },
-      { ignored: false, path: "/dev/worktree-2", dirty: false },
-    ]);
+    expect(
+      await getRemovableWorktrees($, ["/dev/worktree-1", "/dev/worktree-2", "/dev/worktree-3"]),
+    )
+      .toEqual([
+        { ignored: true, path: "/dev/worktree-1", dirty: true },
+        { ignored: false, path: "/dev/worktree-2", dirty: false },
+      ]);
   });
 
   it("returns an array of merged branches, backup branches of merged branches, and orphaned backup branches with their ignored state", async () => {
     using $ = mock$([{
-      args: ["config", "get", "cleanup.ignoredBranches"],
+      args: ["-C", dir, "config", "get", "cleanup.ignoredBranches"],
       output: "deleted-upstream-backup orphaned-backup2",
     }, {
-      args: ["branch", "--format", "%(refname:short)%(upstream:track)"],
+      args: ["-C", dir, "branch", "--format", "%(refname:short)%(upstream:track)"],
       output: `main
 deleted-upstream[gone]
 deleted-upstream-backup
@@ -203,7 +205,7 @@ orphaned-backup2
 `,
     }]);
 
-    expect(await getRemovableBranches($)).toEqual([
+    expect(await getRemovableBranches($, dir)).toEqual([
       { name: "deleted-upstream", ignored: false },
       { name: "deleted-upstream-backup", ignored: true },
       { name: "deleted-upstream-backup2", ignored: false },
@@ -217,64 +219,67 @@ orphaned-backup2
 describe("getIgnoredBranches", () => {
   it("parses the git config", async () => {
     using $ = mock$([
-      { args: ["config", "get", "cleanup.ignoredBranches"], output: "branch-1 branch-3" },
+      {
+        args: ["-C", dir, "config", "get", "cleanup.ignoredBranches"],
+        output: "branch-1 branch-3",
+      },
     ]);
 
-    expect(await getIgnoredBranches($)).toEqual(["branch-1", "branch-3"]);
+    expect(await getIgnoredBranches($, dir)).toEqual(["branch-1", "branch-3"]);
   });
 
   it("handles missing config", async () => {
     using $ = mock$([
-      { args: ["config", "get", "cleanup.ignoredBranches"], error: true },
+      { args: ["-C", dir, "config", "get", "cleanup.ignoredBranches"], error: true },
     ]);
 
-    expect(await getIgnoredBranches($)).toEqual([]);
+    expect(await getIgnoredBranches($, dir)).toEqual([]);
   });
 
   it("handles blank", async () => {
     using $ = mock$([
-      ["config", "get", "cleanup.ignoredBranches"],
+      ["-C", dir, "config", "get", "cleanup.ignoredBranches"],
     ]);
 
-    expect(await getIgnoredBranches($)).toEqual([]);
+    expect(await getIgnoredBranches($, dir)).toEqual([]);
   });
 });
 
 describe("setIgnoredBranches", () => {
   it("parses the git config", async () => {
     using $ = mock$([
-      ["config", "set", "cleanup.ignoredBranches", "branch-1 branch-2"],
+      ["-C", dir, "config", "set", "cleanup.ignoredBranches", "branch-1 branch-2"],
     ]);
 
-    await setIgnoredBranches($, ["branch-1", "branch-2"]);
+    await setIgnoredBranches($, dir, ["branch-1", "branch-2"]);
   });
 });
 
 describe("deleteBranches", () => {
   it("detaches worktrees and deletes the branches", async () => {
     using $ = mock$([
-      { args: ["worktree", "list", "--porcelain"], output: worktreeListOutput },
+      { args: ["-C", dir, "worktree", "list", "--porcelain"], output: worktreeListOutput },
       ["-C", "/dev/worktree-1", "switch", "--detach"],
-      ["branch", "-D", "worktree-1", "worktree-3"],
+      ["-C", dir, "branch", "-D", "worktree-1", "worktree-3"],
     ]);
 
-    await deleteBranches($, ["worktree-1", "worktree-3"]);
+    await deleteBranches($, dir, ["worktree-1", "worktree-3"]);
   });
 
   it("does nothing when there are no branches to delete", async () => {
     using $ = mock$([]);
 
-    await deleteBranches($, []);
+    await deleteBranches($, dir, []);
   });
 });
 
 describe("getBranchWorktrees", () => {
   it("returns a map of worktree paths and their branches, filtering out detached worktrees", async () => {
     using $ = mock$([
-      { args: ["worktree", "list", "--porcelain"], output: worktreeListOutput },
+      { args: ["-C", dir, "worktree", "list", "--porcelain"], output: worktreeListOutput },
     ]);
 
-    expect(await getBranchWorktrees($)).toEqual(
+    expect(await getBranchWorktrees($, dir)).toEqual(
       new Map([
         ["main", "/dev/project"],
         ["worktree-1", "/dev/worktree-1"],
